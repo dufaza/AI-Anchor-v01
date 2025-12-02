@@ -149,17 +149,28 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
             else { scopeMultiplier = config.riskCoefficients.scopePenaltyHeavy; }
         }
 
-        // 3. Env Risk
+        // 3. Risk Calculation
         const baseEnvRisk = config.calculatedWindFactor + (config.calculatedDepthFactor || 0) + (config.calculatedSwellFactor || 0);
         const seabedFactor = config.calculatedSeabedFactor || 1.0;
         
+        // Environmental Risk (External forces amplified by setup)
         const environmentalRisk = baseEnvRisk * seabedFactor * scopeMultiplier * hwFactor;
 
-        // 4. Vigilance & Dynamic Limits
-        // If Risk is High -> Vigilance Increases -> Limits Decrease (Stricter)
+        // Structural Risk (Setup quality independent of weather)
+        // If the setup is compromised (Bad Holding * Short Chain), limits must be tighter even in calm weather.
+        const structuralRisk = seabedFactor * scopeMultiplier * hwFactor;
+
+        // 4. Vigilance & Dynamic Limits Logic
         let vigilanceMultiplier = 1.0;
-        if (environmentalRisk > 1.0) vigilanceMultiplier = 2.0;
-        else if (environmentalRisk > 0.5) vigilanceMultiplier = 1.5;
+        
+        // CRITICAL: If Structural Risk is High (e.g. > 2.0) OR Environmental Risk is High
+        if (structuralRisk >= 2.0 || environmentalRisk > 1.0) {
+             vigilanceMultiplier = 2.0; // STRICT: Halve the limits
+        } 
+        // ELEVATED: If Structural Risk is Moderate (e.g. > 1.2) OR Env Risk is Moderate
+        else if (structuralRisk >= 1.2 || environmentalRisk > 0.5) {
+             vigilanceMultiplier = 1.5; // CAUTION: Reduce limits by 33%
+        }
         
         const effectiveLimits = {
             pitch: config.maxPitch / vigilanceMultiplier,
@@ -182,6 +193,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
             hwFactor,
             scopeMultiplier,
             environmentalRisk,
+            structuralRisk,
             vigilanceMultiplier,
             effectiveLimits,
             activeDrivers
@@ -190,7 +202,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
 
     // --- ALARM LOGIC (Consuming Centralized Risk Context) ---
     useEffect(() => {
-        const { effectiveLimits, environmentalRisk } = riskContext;
+        const { effectiveLimits, environmentalRisk, structuralRisk } = riskContext;
 
         const devPitch = displayedPitch - config.monitoringReference.pitch;
         const devRoll = displayedRoll - config.monitoringReference.roll;
@@ -205,9 +217,13 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
             Math.abs(devYaw) / effectiveLimits.yaw
         );
 
-        // Final Score
-        const totalRiskIndex = motionRisk + environmentalRisk;
+        // Final Score: Combine Motion Risk with Env/Structural Risk
+        // If structure is weak, base risk starts higher
+        const baseRisk = structuralRisk > 1.5 ? 2 : 0;
+        
+        const totalRiskIndex = motionRisk + environmentalRisk + (baseRisk * 0.1);
         let score = Math.ceil(totalRiskIndex * 10);
+        
         if (motionRisk > 0.6) score = Math.max(score, 4);
         if (motionRisk >= 1.0) score = Math.max(score, 9);
         score = Math.min(10, Math.max(1, score));
@@ -669,7 +685,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                 
                                 {vigilanceMultiplier > 1.0 && (
                                     <p className="text-[9px] text-orange-400 text-center italic mt-0.5">
-                                        Note: Limits reduced by {vigilanceMultiplier}x due to High Risk.
+                                        Note: Limits reduced by {vigilanceMultiplier}x due to Risks.
                                     </p>
                                 )}
                             </div>
@@ -693,25 +709,43 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                             </div>
                         </div>
 
-                        {/* 2. Factor Summary (UPDATED: Identical Style to Last Log, Compact Grid) */}
+                        {/* 2. Factor Summary (UPDATED STYLE) */}
                         <div className="bg-ocean-800 border border-ocean-700 p-3 rounded-xl flex flex-col gap-2 shadow-sm">
                             <div className="flex items-center justify-between border-b border-ocean-700/50 pb-2 mb-1">
                                 <div className="flex items-center gap-2">
-                                    <Sigma className="w-4 h-4 text-ocean-400" />
-                                    <h4 className="text-xs font-bold text-ocean-400 uppercase">Algorithm Factors</h4>
+                                    <Sigma className="w-4 h-4 text-white" />
+                                    <h4 className="text-xs font-bold text-white uppercase">Algorithm Factors</h4>
                                 </div>
                             </div>
 
-                            {/* Compact Grid Layout */}
+                            {/* Compact Grid Layout with Blue Title Case Labels */}
                             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px]">
-                                 <div className="flex justify-between items-center"><span className="text-ocean-300 font-bold uppercase">Wind</span><span className="font-mono text-blue-300">+{config.calculatedWindFactor}</span></div>
-                                 <div className="flex justify-between items-center"><span className="text-ocean-300 font-bold uppercase">Seabed</span><span className="font-mono text-yellow-300">x{config.calculatedSeabedFactor.toFixed(1)}</span></div>
+                                 <div className="flex justify-between items-center">
+                                    <span className="text-ocean-400 font-bold">Wind</span>
+                                    <span className="font-mono text-blue-300">+{config.calculatedWindFactor}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center">
+                                    <span className="text-ocean-400 font-bold">Seabed</span>
+                                    <span className="font-mono text-yellow-300">x{config.calculatedSeabedFactor.toFixed(1)}</span>
+                                 </div>
                                  
-                                 <div className="flex justify-between items-center"><span className="text-ocean-300 font-bold uppercase">Depth</span><span className="font-mono text-cyan-300">+{config.calculatedDepthFactor}</span></div>
-                                 <div className="flex justify-between items-center"><span className="text-ocean-300 font-bold uppercase">Scope</span><span className="font-mono text-orange-300">x{scopeMultiplier.toFixed(1)}</span></div>
+                                 <div className="flex justify-between items-center">
+                                    <span className="text-ocean-400 font-bold">Depth</span>
+                                    <span className="font-mono text-cyan-300">+{config.calculatedDepthFactor}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center">
+                                    <span className="text-ocean-400 font-bold">Scope</span>
+                                    <span className="font-mono text-orange-300">x{scopeMultiplier.toFixed(1)}</span>
+                                 </div>
                                  
-                                 <div className="flex justify-between items-center"><span className="text-ocean-300 font-bold uppercase">Swell</span><span className="font-mono text-indigo-300">+{config.calculatedSwellFactor}</span></div>
-                                 <div className="flex justify-between items-center"><span className="text-ocean-300 font-bold uppercase">Gear</span><span className="font-mono text-purple-300">x{hwFactor.toFixed(1)}</span></div>
+                                 <div className="flex justify-between items-center">
+                                    <span className="text-ocean-400 font-bold">Swell</span>
+                                    <span className="font-mono text-indigo-300">+{config.calculatedSwellFactor}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center">
+                                    <span className="text-ocean-400 font-bold">Gear</span>
+                                    <span className="font-mono text-purple-300">x{hwFactor.toFixed(1)}</span>
+                                 </div>
                             </div>
                         </div>
 
