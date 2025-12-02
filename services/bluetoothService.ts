@@ -215,49 +215,32 @@ const parseSTM32Fusion = (data: DataView): Partial<SensorData> => {
              if (!Number.isFinite(qx) || !Number.isFinite(qy) || !Number.isFinite(qz)) return {};
 
              // Calculate W component (unit quaternion constraint)
+             // Robust calculation: sumSq can slightly exceed 1.0 due to sensor noise/float precision.
+             // We use Math.max(0, ...) to prevent NaN from sqrt of negative number.
              let sumSq = qx*qx + qy*qy + qz*qz;
-             let qw = 0.0;
-             if (sumSq < 1.0) {
-                 qw = Math.sqrt(1.0 - sumSq);
-             } else {
-                 // Normalize if sum > 1 (error correction) to avoid NaN
-                 const norm = Math.sqrt(sumSq);
-                 qx /= norm; qy /= norm; qz /= norm;
-                 qw = 0.0; 
-             }
+             let qw = Math.sqrt(Math.max(0.0, 1.0 - sumSq));
 
-             // USE ROTATION MATRIX METHOD FOR EULER CONVERSION (More Robust than Direct Euler)
-             // Derived from Quaternions [w, x, y, z]
-             const sqw = qw*qw;
-             const sqx = qx*qx;
-             const sqy = qy*qy;
-             const sqz = qz*qz;
-
-             // Pitch (Rotation around Y-axis) - using Matrix element R31
-             // Formula: asin(2 * (w*y - z*x))
-             // NOTE: ST sensors sometimes swap axes locally. 
-             // Standard Tait-Bryan Z-Y-X:
-             // Roll = atan2(2(wy + zx), 1 - 2(x^2 + y^2)) ... wait, usually x is forward.
-             // Let's use standard Aerospace sequence:
-             // R11 R12 R13
-             // R21 R22 R23
-             // R31 R32 R33
+             // Euler Angles (Tait-Bryan Z-Y-X sequence)
+             // Roll (x-axis), Pitch (y-axis), Yaw (z-axis)
              
              // Roll (x-axis rotation)
+             // atan2(2(w*x + y*z), 1 - 2(x^2 + y^2))
              const t0 = 2.0 * (qw * qx + qy * qz);
-             const t1 = 1.0 - 2.0 * (sqx + sqy);
+             const t1 = 1.0 - 2.0 * (qx*qx + qy*qy);
              const roll = Math.atan2(t0, t1) * (180.0 / Math.PI);
              
              // Pitch (y-axis rotation)
+             // asin(2(w*y - z*x))
              let t2 = 2.0 * (qw * qy - qz * qx);
-             // Clamp for safety
+             // Clamp for safety to avoid NaN from asin > 1.0
              if (t2 > 1.0) t2 = 1.0;
              if (t2 < -1.0) t2 = -1.0;
              const pitch = Math.asin(t2) * (180.0 / Math.PI);
              
              // Yaw (z-axis rotation)
+             // atan2(2(w*z + x*y), 1 - 2(y^2 + z^2))
              const t3 = 2.0 * (qw * qz + qx * qy);
-             const t4 = 1.0 - 2.0 * (sqy + sqz);
+             const t4 = 1.0 - 2.0 * (qy*qy + qz*qz);
              let yaw = Math.atan2(t3, t4) * (180.0 / Math.PI);
              
              // Normalize Yaw 0-360
