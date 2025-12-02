@@ -485,8 +485,8 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         }
 
         return (
-            <div className="flex flex-col h-full p-4 space-y-3 overflow-y-auto pb-24 animate-in fade-in">
-                <div className="flex items-center justify-between px-2">
+            <div className="flex flex-col h-full p-4 space-y-3 pb-24 animate-in fade-in">
+                <div className="flex items-center justify-between px-2 flex-shrink-0">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Ruler className="w-6 h-6 text-ocean-500" /> Calibration</h2>
                     <span className="text-xs text-ocean-400">Step 2/4</span>
                 </div>
@@ -494,63 +494,59 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                 <button 
                     onClick={handleCalibrate} 
                     disabled={showCalibSuccess}
-                    className="w-full py-3 rounded-xl font-bold text-lg shadow-lg bg-ocean-500 hover:bg-ocean-400 text-white transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-4 rounded-xl font-bold text-lg shadow-lg bg-ocean-500 hover:bg-ocean-400 text-white transition-colors flex items-center justify-center gap-2 flex-shrink-0"
                 >
                     <Gauge className="w-5 h-5" /> Set Zero (Tare)
                 </button>
 
-                {/* Changed overflow-hidden to overflow-y-auto to allow scrolling for debug data */}
-                <div className="bg-ocean-800 rounded-2xl border border-ocean-700 p-4 flex flex-col items-center flex-1 relative overflow-y-auto">
+                {/* COMPACT CARD - AUTO HEIGHT */}
+                <div className="bg-ocean-800 rounded-2xl border border-ocean-700 p-4 flex flex-col gap-2 h-auto shadow-sm">
                     {showCalibSuccess ? (
-                        <div className="absolute inset-0 bg-safe-900/90 flex flex-col items-center justify-center z-10 animate-in fade-in">
-                            <CheckCircle className="w-20 h-20 text-safe-500 mb-4" />
-                            <h3 className="text-2xl font-bold text-white">Calibrated!</h3>
+                        <div className="flex flex-col items-center justify-center py-6 animate-in fade-in">
+                            <CheckCircle className="w-16 h-16 text-safe-500 mb-4" />
+                            <h3 className="text-xl font-bold text-white">Calibrated!</h3>
                             <p className="text-safe-200 mt-2">Redirecting in {calibCountdown}s...</p>
                         </div>
                     ) : (
-                         <div className="w-full h-full flex flex-col gap-3">
-                            <div className="flex justify-center flex-shrink-0">
-                                <RefreshCw className="w-10 h-10 text-ocean-500 animate-spin-slow" />
-                            </div>
-                            <div className="bg-ocean-900/50 p-3 rounded-xl border border-ocean-700/50 flex-shrink-0">
-                                <h4 className="text-xs font-bold text-ocean-300 uppercase mb-2 flex items-center gap-2">
-                                    <Info className="w-4 h-4" /> Instructions
-                                </h4>
-                                <ul className="text-xs text-gray-300 space-y-2 list-disc pl-4 leading-relaxed">
-                                    <li>Lay the anchor flat (horizontal).</li>
-                                    <li>Mount sensor on the anchor shank.</li>
-                                    <li>Secure the retrieval line.</li>
-                                    <li>Verify raw angles below are stable.</li>
+                         <div className="flex flex-col gap-2">
+                             
+                             {/* INSTRUCTIONS - COMPACT */}
+                            <div className="bg-ocean-900/50 p-2 rounded-xl border border-ocean-700/50 flex flex-row items-center gap-3">
+                                <Info className="w-5 h-5 text-ocean-400 flex-shrink-0" />
+                                <ul className="text-[10px] text-gray-300 leading-tight space-y-0.5">
+                                    <li>• Lay anchor flat (horizontal).</li>
+                                    <li>• Mount sensor on shank.</li>
+                                    <li>• Secure line & check stability.</li>
                                 </ul>
                             </div>
                             
-                            {/* UPDATED: 3 Columns for PITCH, ROLL, YAW */}
-                            <div className="grid grid-cols-3 gap-2 w-full mt-auto">
+                            {/* RAW ANGLES */}
+                            <div className="grid grid-cols-3 gap-2 w-full mt-1">
                                 <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
-                                    <span className="text-[9px] text-ocean-400 block font-bold">RAW PITCH</span>
-                                    <span className="font-mono font-bold text-white text-lg">{smoothPitch.toFixed(0)}°</span>
+                                    <span className="text-[9px] text-ocean-400 block font-bold uppercase">Pitch</span>
+                                    <span className="font-mono font-bold text-white text-base">{smoothPitch.toFixed(0)}°</span>
                                 </div>
                                 <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
-                                    <span className="text-[9px] text-ocean-400 block font-bold">RAW ROLL</span>
-                                    <span className="font-mono font-bold text-white text-lg">{smoothRoll.toFixed(0)}°</span>
+                                    <span className="text-[9px] text-ocean-400 block font-bold uppercase">Roll</span>
+                                    <span className="font-mono font-bold text-white text-base">{smoothRoll.toFixed(0)}°</span>
                                 </div>
                                 <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
-                                    <span className="text-[9px] text-ocean-400 block font-bold">RAW YAW</span>
-                                    <span className="font-mono font-bold text-white text-lg">{smoothYaw.toFixed(0)}°</span>
+                                    <span className="text-[9px] text-ocean-400 block font-bold uppercase">Yaw</span>
+                                    <span className="font-mono font-bold text-white text-base">{smoothYaw.toFixed(0)}°</span>
                                 </div>
                             </div>
                             
-                            {/* EXPLICIT DEBUG QUATERNIONS */}
-                            <div className="w-full p-3 bg-black/40 rounded-xl border border-ocean-600 text-[11px] font-mono text-ocean-300 mt-2">
-                                <div className="flex justify-between mb-2 border-b border-ocean-700 pb-1">
-                                    <span className="font-bold text-ocean-400 uppercase">Debug Quaternions (Raw)</span>
+                            {/* DEBUG QUATERNIONS (COMPACT TABLE) */}
+                            <div className="w-full mt-1 p-2 bg-black/40 rounded-lg border border-ocean-600 text-[10px] font-mono text-ocean-300">
+                                <div className="flex justify-between mb-1 border-b border-ocean-700 pb-0.5">
+                                    <span className="font-bold text-ocean-400 uppercase">Debug Quaternions</span>
                                     {sensorData.qx === undefined && <span className="text-red-500 font-bold">NO DATA</span>}
                                 </div>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                                    <div className="flex justify-between"><span>Qx (Roll):</span><span className="text-white font-bold">{sensorData.qx !== undefined ? sensorData.qx.toFixed(3) : '0.000'}</span></div>
-                                    <div className="flex justify-between"><span>Qy (Pitch):</span><span className="text-white font-bold">{sensorData.qy !== undefined ? sensorData.qy.toFixed(3) : '0.000'}</span></div>
-                                    <div className="flex justify-between"><span>Qz (Yaw):</span><span className="text-white font-bold">{sensorData.qz !== undefined ? sensorData.qz.toFixed(3) : '0.000'}</span></div>
-                                    <div className="flex justify-between"><span>Qw (Real):</span><span className="text-white font-bold">{sensorData.qw !== undefined ? sensorData.qw.toFixed(3) : '1.000'}</span></div>
+                                <div className="grid grid-cols-4 gap-1 text-center">
+                                    <div><span className="opacity-50 text-[8px] block">QX</span><span className="text-white font-bold">{sensorData.qx?.toFixed(3) || '-'}</span></div>
+                                    <div><span className="opacity-50 text-[8px] block">QY</span><span className="text-white font-bold">{sensorData.qy?.toFixed(3) || '-'}</span></div>
+                                    <div><span className="opacity-50 text-[8px] block">QZ</span><span className="text-white font-bold">{sensorData.qz?.toFixed(3) || '-'}</span></div>
+                                    <div><span className="opacity-50 text-[8px] block">QW</span><span className="text-white font-bold">{sensorData.qw?.toFixed(3) || '-'}</span></div>
                                 </div>
                             </div>
                          </div>
