@@ -397,7 +397,7 @@ export const bluetoothService = {
                 throw new Error("Unknown Sensor Type");
         }
     },
-
+ 
     disconnect: (device: BluetoothDevice | null) => {
         if (activeInterval) clearInterval(activeInterval);
         if (device && device.gatt && device.gatt.connected) {
