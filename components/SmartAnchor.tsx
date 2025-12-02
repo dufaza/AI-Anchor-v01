@@ -499,7 +499,8 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                     <Gauge className="w-5 h-5" /> Set Zero (Tare)
                 </button>
 
-                <div className="bg-ocean-800 rounded-2xl border border-ocean-700 p-4 flex flex-col items-center flex-1 relative overflow-hidden">
+                {/* Changed overflow-hidden to overflow-y-auto to allow scrolling for debug data */}
+                <div className="bg-ocean-800 rounded-2xl border border-ocean-700 p-4 flex flex-col items-center flex-1 relative overflow-y-auto">
                     {showCalibSuccess ? (
                         <div className="absolute inset-0 bg-safe-900/90 flex flex-col items-center justify-center z-10 animate-in fade-in">
                             <CheckCircle className="w-20 h-20 text-safe-500 mb-4" />
@@ -507,11 +508,11 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                             <p className="text-safe-200 mt-2">Redirecting in {calibCountdown}s...</p>
                         </div>
                     ) : (
-                         <div className="w-full h-full flex flex-col">
-                            <div className="mb-4 flex justify-center flex-shrink-0">
+                         <div className="w-full h-full flex flex-col gap-3">
+                            <div className="flex justify-center flex-shrink-0">
                                 <RefreshCw className="w-10 h-10 text-ocean-500 animate-spin-slow" />
                             </div>
-                            <div className="bg-ocean-900/50 p-3 rounded-xl border border-ocean-700/50 mb-4 flex-shrink-0">
+                            <div className="bg-ocean-900/50 p-3 rounded-xl border border-ocean-700/50 flex-shrink-0">
                                 <h4 className="text-xs font-bold text-ocean-300 uppercase mb-2 flex items-center gap-2">
                                     <Info className="w-4 h-4" /> Instructions
                                 </h4>
@@ -520,11 +521,11 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                     <li>Mount sensor on the anchor shank.</li>
                                     <li>Secure the retrieval line.</li>
                                     <li>Verify raw angles below are stable.</li>
-                                    <li>Tap <strong>Set Zero</strong> above to calibrate.</li>
                                 </ul>
                             </div>
+                            
                             {/* UPDATED: 3 Columns for PITCH, ROLL, YAW */}
-                            <div className="grid grid-cols-3 gap-2 w-full mt-auto mb-2">
+                            <div className="grid grid-cols-3 gap-2 w-full mt-auto">
                                 <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
                                     <span className="text-[9px] text-ocean-400 block font-bold">RAW PITCH</span>
                                     <span className="font-mono font-bold text-white text-lg">{smoothPitch.toFixed(0)}°</span>
@@ -539,14 +540,17 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                 </div>
                             </div>
                             
-                            {/* DEBUG QUATERNIONS */}
-                            <div className="w-full p-2 bg-black/20 rounded border border-ocean-800 text-[10px] font-mono text-ocean-400">
-                                <div className="flex justify-between mb-1 font-bold text-ocean-500">DEBUG QUATERNIONS</div>
-                                <div className="grid grid-cols-4 gap-1 text-center">
-                                    <div>Qx: {sensorData.qx?.toFixed(2)}</div>
-                                    <div>Qy: {sensorData.qy?.toFixed(2)}</div>
-                                    <div>Qz: {sensorData.qz?.toFixed(2)}</div>
-                                    <div>Qw: {sensorData.qw?.toFixed(2)}</div>
+                            {/* EXPLICIT DEBUG QUATERNIONS */}
+                            <div className="w-full p-3 bg-black/40 rounded-xl border border-ocean-600 text-[11px] font-mono text-ocean-300 mt-2">
+                                <div className="flex justify-between mb-2 border-b border-ocean-700 pb-1">
+                                    <span className="font-bold text-ocean-400 uppercase">Debug Quaternions (Raw)</span>
+                                    {sensorData.qx === undefined && <span className="text-red-500 font-bold">NO DATA</span>}
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                                    <div className="flex justify-between"><span>Qx (Roll):</span><span className="text-white font-bold">{sensorData.qx !== undefined ? sensorData.qx.toFixed(3) : '0.000'}</span></div>
+                                    <div className="flex justify-between"><span>Qy (Pitch):</span><span className="text-white font-bold">{sensorData.qy !== undefined ? sensorData.qy.toFixed(3) : '0.000'}</span></div>
+                                    <div className="flex justify-between"><span>Qz (Yaw):</span><span className="text-white font-bold">{sensorData.qz !== undefined ? sensorData.qz.toFixed(3) : '0.000'}</span></div>
+                                    <div className="flex justify-between"><span>Qw (Real):</span><span className="text-white font-bold">{sensorData.qw !== undefined ? sensorData.qw.toFixed(3) : '1.000'}</span></div>
                                 </div>
                             </div>
                          </div>
