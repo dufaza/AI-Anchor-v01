@@ -1,4 +1,5 @@
 
+
 import { SensorData, SensorType } from '../types';
 
 // ===========================================================================
@@ -68,7 +69,8 @@ const startSimulator = (onData: (data: Partial<SensorData>) => void) => {
             lastUpdate: Date.now(),
             isConnected: true,
             battery: 85,
-            temperature: 24
+            temperature: 24,
+            qx: 0, qy: 0, qz: 0, qw: 1 // Dummy quats
         });
     }, 10); 
 
@@ -215,20 +217,24 @@ const parseSTM32Fusion = (data: DataView): Partial<SensorData> => {
              if (!Number.isFinite(qx) || !Number.isFinite(qy) || !Number.isFinite(qz)) return {};
 
              // Calculate W component (unit quaternion constraint)
-             // Robust calculation: sumSq can slightly exceed 1.0 due to sensor noise/float precision.
-             // We use Math.max(0, ...) to prevent NaN from sqrt of negative number.
              let sumSq = qx*qx + qy*qy + qz*qz;
-             let qw = Math.sqrt(Math.max(0.0, 1.0 - sumSq));
-
-             // Normalize Quaternion to prevent Math errors in conversion
-             // (Fixes Yaw issues if sensor is slightly uncalibrated)
-             const mag = Math.sqrt(qx*qx + qy*qy + qz*qz + qw*qw);
-             if (mag > 0) {
-                 qx /= mag;
-                 qy /= mag;
-                 qz /= mag;
-                 qw /= mag;
+             
+             // CRITICAL FIX: Normalization Logic
+             // If sumSq > 1.0 (noise), we MUST normalize the vector (x,y,z) first.
+             // Setting W=0 abruptly when sumSq > 1.0 (previous logic) caused Pitch to zero out
+             // because w=0 implies a specific 180 rotation that nullified the Pitch term.
+             if (sumSq > 1.0) {
+                 const norm = Math.sqrt(sumSq);
+                 if (norm > 0) {
+                    qx /= norm;
+                    qy /= norm;
+                    qz /= norm;
+                 }
+                 // After normalizing x,y,z to magnitude 1, w must be 0
+                 sumSq = 1.0;
              }
+             
+             let qw = Math.sqrt(1.0 - sumSq);
 
              // Euler Angles (Tait-Bryan Z-Y-X sequence)
              // Roll (x-axis), Pitch (y-axis), Yaw (z-axis)
@@ -261,7 +267,12 @@ const parseSTM32Fusion = (data: DataView): Partial<SensorData> => {
                  pitch: Number.isFinite(pitch) ? parseFloat(pitch.toFixed(2)) : 0,
                  roll: Number.isFinite(roll) ? parseFloat(roll.toFixed(2)) : 0,
                  yaw: Number.isFinite(yaw) ? parseFloat(yaw.toFixed(2)) : 0,
-                 isConnected: true
+                 isConnected: true,
+                 // Send Raw Quaternions for Debugging
+                 qx: parseFloat(qx.toFixed(3)),
+                 qy: parseFloat(qy.toFixed(3)),
+                 qz: parseFloat(qz.toFixed(3)),
+                 qw: parseFloat(qw.toFixed(3))
              };
         }
         return {};

@@ -39,6 +39,12 @@ export interface SensorData {
   pitch: number;
   roll: number;
   yaw: number;
+  // Raw Quaternions for Debugging
+  qx?: number;
+  qy?: number;
+  qz?: number;
+  qw?: number;
+  
   battery: number;
   temperature: number;
   lastUpdate: number;

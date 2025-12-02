@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Bluetooth, CheckCircle, AlertTriangle, Wifi, Battery, ShieldCheck, ShieldAlert, Unlock, Activity, BarChart3, Layers, Link as LinkIcon, ThumbsUp, Gauge, Scale, ArrowDown, MoveVertical, MoveHorizontal, Ruler, RefreshCw, Info, Weight, Waves, Compass, Play, ArrowDownCircle, Anchor, ArrowDownToLine, Ship, CheckCircle2, Gamepad2, Timer, ClipboardCheck, ChevronRight, Download, FileText, CircleDot, CircleOff, RotateCw, Sigma, Wind } from 'lucide-react';
 import { SensorData, AnchorConfig, ChainData, SmartAnchorState, AppTab, BoatData, RecordingStats } from '../types';
@@ -523,7 +524,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                 </ul>
                             </div>
                             {/* UPDATED: 3 Columns for PITCH, ROLL, YAW */}
-                            <div className="grid grid-cols-3 gap-2 w-full mt-auto">
+                            <div className="grid grid-cols-3 gap-2 w-full mt-auto mb-2">
                                 <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
                                     <span className="text-[9px] text-ocean-400 block font-bold">RAW PITCH</span>
                                     <span className="font-mono font-bold text-white text-lg">{smoothPitch.toFixed(0)}°</span>
@@ -535,6 +536,17 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                 <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
                                     <span className="text-[9px] text-ocean-400 block font-bold">RAW YAW</span>
                                     <span className="font-mono font-bold text-white text-lg">{smoothYaw.toFixed(0)}°</span>
+                                </div>
+                            </div>
+                            
+                            {/* DEBUG QUATERNIONS */}
+                            <div className="w-full p-2 bg-black/20 rounded border border-ocean-800 text-[10px] font-mono text-ocean-400">
+                                <div className="flex justify-between mb-1 font-bold text-ocean-500">DEBUG QUATERNIONS</div>
+                                <div className="grid grid-cols-4 gap-1 text-center">
+                                    <div>Qx: {sensorData.qx?.toFixed(2)}</div>
+                                    <div>Qy: {sensorData.qy?.toFixed(2)}</div>
+                                    <div>Qz: {sensorData.qz?.toFixed(2)}</div>
+                                    <div>Qw: {sensorData.qw?.toFixed(2)}</div>
                                 </div>
                             </div>
                          </div>
