@@ -150,6 +150,19 @@ const Settings: React.FC<SettingsProps> = ({
             setIsConnecting(false);
             setConnectionStatusText('Connect');
             
+            // Check for User Cancellation (Chrome/Edge/Bluefy specific messages)
+            // 'NotFoundError' is the standard error when user cancels the chooser
+            const isUserCancelled = 
+                e.name === 'NotFoundError' || 
+                e.message?.includes('cancelled') || 
+                e.message?.includes('User denied');
+
+            if (isUserCancelled) {
+                console.log("Connection cancelled by user.");
+                // Do not alert, just return to idle state
+                return;
+            }
+            
             // ROBUST ERROR HANDLING FOR "undefined" or weird objects
             let errorMsg = "Unknown Error";
             if (typeof e === 'string') {

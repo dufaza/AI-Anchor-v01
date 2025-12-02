@@ -1,5 +1,6 @@
 
 
+
 import { SensorData, SensorType } from '../types';
 
 // ===========================================================================
@@ -151,7 +152,21 @@ const connectTI = async (onData: (data: Partial<SensorData>) => void, onDisconne
     
     device.addEventListener('gattserverdisconnected', onDisconnect);
     console.log("TI: Connecting GATT...");
-    const server = await device.gatt.connect();
+    
+    // Robust Connection Loop
+    let server: BluetoothRemoteGATTServer | null = null;
+    let retries = 3;
+    while (retries > 0 && !server) {
+        try {
+            server = await device.gatt.connect();
+        } catch (error) {
+            console.warn(`TI: GATT connect failed, retries left: ${retries-1}`, error);
+            retries--;
+            if (retries === 0) throw error;
+            await new Promise(r => setTimeout(r, 1000)); // Wait 1s
+        }
+    }
+    if (!server) throw new Error("GATT connection failed after retries");
     activeGattServer = server;
 
     console.log("TI: Getting Service...");
@@ -287,7 +302,21 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
     
     device.addEventListener('gattserverdisconnected', onDisconnect);
     console.log("STM32: Connecting GATT...");
-    const server = await device.gatt.connect();
+    
+    // Robust Connection Loop (Retry Mechanism)
+    let server: BluetoothRemoteGATTServer | null = null;
+    let retries = 3;
+    while (retries > 0 && !server) {
+        try {
+            server = await device.gatt.connect();
+        } catch (error) {
+            console.warn(`STM32: GATT connect failed, retries left: ${retries-1}`, error);
+            retries--;
+            if (retries === 0) throw error;
+            await new Promise(r => setTimeout(r, 1000)); // Wait 1s
+        }
+    }
+    if (!server) throw new Error("GATT connection failed after retries");
     activeGattServer = server;
 
     console.log("STM32: Getting Primary Service...");
