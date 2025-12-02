@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Bluetooth, CheckCircle, AlertTriangle, Wifi, Battery, ShieldCheck, ShieldAlert, Unlock, Activity, BarChart3, Layers, Link as LinkIcon, ThumbsUp, Gauge, Scale, ArrowDown, MoveVertical, MoveHorizontal, Ruler, RefreshCw, Info, Weight, Waves, Compass, Play, ArrowDownCircle, Anchor, ArrowDownToLine, Ship, CheckCircle2, Gamepad2, Timer, ClipboardCheck, ChevronRight, Download, FileText, CircleDot, CircleOff, RotateCw, Sigma, Wind } from 'lucide-react';
 import { SensorData, AnchorConfig, ChainData, SmartAnchorState, AppTab, BoatData, RecordingStats } from '../types';
@@ -521,14 +522,19 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                     <li>Tap <strong>Set Zero</strong> above to calibrate.</li>
                                 </ul>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 w-full mt-auto">
+                            {/* UPDATED: 3 Columns for PITCH, ROLL, YAW */}
+                            <div className="grid grid-cols-3 gap-2 w-full mt-auto">
                                 <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
-                                    <span className="text-[10px] text-ocean-400 block font-bold">RAW PITCH</span>
+                                    <span className="text-[9px] text-ocean-400 block font-bold">RAW PITCH</span>
                                     <span className="font-mono font-bold text-white text-lg">{smoothPitch.toFixed(0)}°</span>
                                 </div>
                                 <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
-                                    <span className="text-[10px] text-ocean-400 block font-bold">RAW ROLL</span>
+                                    <span className="text-[9px] text-ocean-400 block font-bold">RAW ROLL</span>
                                     <span className="font-mono font-bold text-white text-lg">{smoothRoll.toFixed(0)}°</span>
+                                </div>
+                                <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
+                                    <span className="text-[9px] text-ocean-400 block font-bold">RAW YAW</span>
+                                    <span className="font-mono font-bold text-white text-lg">{smoothYaw.toFixed(0)}°</span>
                                 </div>
                             </div>
                          </div>
@@ -979,6 +985,13 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                             <span className="text-[9px] text-ocean-400 font-bold">R</span>
                                             <span className="font-mono text-[10px] font-bold text-white">
                                                 {displayedRoll.toFixed(0)}°
+                                            </span>
+                                        </div>
+                                        {/* ADDED: YAW ROW IN VALIDATION BOX */}
+                                        <div className="flex items-center justify-between gap-1">
+                                            <span className="text-[9px] text-ocean-400 font-bold">Y</span>
+                                            <span className="font-mono text-[10px] font-bold text-white">
+                                                {displayedYaw.toFixed(0)}°
                                             </span>
                                         </div>
                                     </div>
