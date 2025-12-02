@@ -308,17 +308,19 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
     if (!navigator.bluetooth) throw new Error("Bluetooth not supported");
 
     console.log("STM32: Requesting Device...");
-    // FIX: Broader filters to capture SensorTile Box Pro and standard BlueST devices
-    // iOS is restrictive: filtering by SERVICE UUID is the most reliable method.
+    // FIX: Reverting to Name-Based Filters ONLY.
+    // Filtering by Service UUID (STM32_UUIDS.SERVICE) often hides the device on iOS 
+    // because the SensorTile doesn't always advertise the UUID in the public packet.
     const device = await navigator.bluetooth.requestDevice({
         filters: [
-            { services: [STM32_UUIDS.SERVICE] }, // Primary detection method (BlueST Protocol)
             { namePrefix: 'BC' },   // Box Connect (often BCST...)
             { namePrefix: 'ST' },   // STMicroelectronics
+            { namePrefix: 'Sen' },  // SensorTile
             { namePrefix: 'Blue' }, // BlueMS
-            { namePrefix: 'BV' },   // BV_
             { namePrefix: 'DT' }    // DT_
         ],
+        // CRITICAL: We MUST list the service here to access it later, 
+        // even if we don't filter by it during discovery.
         optionalServices: [STM32_UUIDS.SERVICE]
     });
 
