@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Bluetooth, CheckCircle, AlertTriangle, Wifi, Battery, ShieldCheck, ShieldAlert, Unlock, Activity, BarChart3, Layers, Link as LinkIcon, ThumbsUp, Gauge, Scale, ArrowDown, MoveVertical, MoveHorizontal, Ruler, RefreshCw, Info, Weight, Waves, Compass, Play, ArrowDownCircle, Anchor, ArrowDownToLine, Ship, CheckCircle2, Gamepad2, Timer, ClipboardCheck, ChevronRight, Download, FileText, CircleDot, CircleOff, RotateCw, Sigma, Wind } from 'lucide-react';
 import { SensorData, AnchorConfig, ChainData, SmartAnchorState, AppTab, BoatData, RecordingStats } from '../types';
@@ -82,8 +80,10 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         // This acts as a stronger low-pass filter to remove jitter
         const smoothingFactor = 0.08; 
         
-        let targetPitch = sensorData.pitch;
-        let targetRoll = sensorData.roll;
+        // Safety: ensure sensorData values are numbers (default to 0) to prevent NaN propagation
+        let targetPitch = sensorData.pitch || 0;
+        let targetRoll = sensorData.roll || 0;
+        let targetYaw = sensorData.yaw || 0;
 
         // Apply Simulation Override if active and we are in Simulator mode
         if (config.sensorType === 'SIMULATOR' && simOverride) {
@@ -97,7 +97,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
 
         setSmoothPitch(prev => prev + (targetPitch - prev) * smoothingFactor);
         setSmoothRoll(prev => prev + (targetRoll - prev) * smoothingFactor);
-        setSmoothYaw(prev => prev + (sensorData.yaw - prev) * smoothingFactor);
+        setSmoothYaw(prev => prev + (targetYaw - prev) * smoothingFactor);
     }, [sensorData, simOverride, config.sensorType]); 
 
     // --- APPLY OFFSETS TO ALL 3 AXES ---
@@ -264,7 +264,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         const now = Date.now();
         const pitch = Math.abs(displayedPitch);
         
-        let rawPitch = sensorData.pitch;
+        let rawPitch = sensorData.pitch || 0;
         if (config.sensorType === 'SIMULATOR' && simOverride) rawPitch = simOverride.pitch + (simOverride.noise ? (Math.random()*10) : 0);
         
         const noiseLevel = Math.abs(rawPitch - smoothPitch);

@@ -1,6 +1,3 @@
-
-
-
 import { SensorData, SensorType } from '../types';
 
 // ===========================================================================
@@ -213,35 +210,48 @@ const parseSTM32Fusion = (data: DataView): Partial<SensorData> => {
              let qy = data.getFloat32(6, true);
              let qz = data.getFloat32(10, true);
              
+             // Validate inputs
              if (!Number.isFinite(qx) || !Number.isFinite(qy) || !Number.isFinite(qz)) return {};
 
+             // Calculate W component (unit quaternion constraint)
              let sumSq = qx*qx + qy*qy + qz*qz;
-             if (sumSq > 1.0) {
+             let qw = 0.0;
+             if (sumSq < 1.0) {
+                 qw = Math.sqrt(1.0 - sumSq);
+             } else {
+                 // Normalize if sum > 1 (error correction)
                  const norm = Math.sqrt(sumSq);
                  qx /= norm; qy /= norm; qz /= norm;
-                 sumSq = 1.0; 
+                 qw = 0.0;
              }
-             const qw = Math.sqrt(1.0 - sumSq);
 
+             // Convert Quaternion to Euler Angles (Tait-Bryan Z-Y-X Convention)
+             // Roll (Rotation around X-axis)
              const sinr_cosp = 2 * (qw * qx + qy * qz);
              const cosr_cosp = 1 - 2 * (qx * qx + qy * qy);
              const roll = Math.atan2(sinr_cosp, cosr_cosp) * (180 / Math.PI);
 
+             // Pitch (Rotation around Y-axis)
              const sinp = 2 * (qw * qy - qz * qx);
              let pitch = 0;
-             if (Math.abs(sinp) >= 1) pitch = (Math.PI / 2) * Math.sign(sinp) * (180 / Math.PI);
-             else pitch = Math.asin(sinp) * (180 / Math.PI);
+             if (Math.abs(sinp) >= 1)
+                 pitch = (Math.PI / 2) * Math.sign(sinp) * (180 / Math.PI); // Clamp to 90
+             else
+                 pitch = Math.asin(sinp) * (180 / Math.PI);
 
+             // Yaw (Rotation around Z-axis)
              const siny_cosp = 2 * (qw * qz + qx * qy);
              const cosy_cosp = 1 - 2 * (qy * qy + qz * qz);
              let yaw = Math.atan2(siny_cosp, cosy_cosp) * (180 / Math.PI);
+             
+             // Normalize Yaw to 0-360
              if (yaw < 0) yaw += 360;
 
-             // Only returning angles, RAW Accel is handled by separate parser
+             // Return with safety defaults to prevent NaN
              return {
-                 pitch: parseFloat(pitch.toFixed(2)),
-                 roll: parseFloat(roll.toFixed(2)),
-                 yaw: parseFloat(yaw.toFixed(2)),
+                 pitch: Number.isFinite(pitch) ? parseFloat(pitch.toFixed(2)) : 0,
+                 roll: Number.isFinite(roll) ? parseFloat(roll.toFixed(2)) : 0,
+                 yaw: Number.isFinite(yaw) ? parseFloat(yaw.toFixed(2)) : 0,
                  isConnected: true
              };
         }
