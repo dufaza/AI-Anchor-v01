@@ -1,0 +1,8 @@
+{
+  "name": "AI-Anchor-v01",
+  "description": "A mobile-first sailing companion for anchor scope calculation, drift monitoring, and AI-powered nautical advice.",
+  "requestFramePermissions": [
+    "geolocation",
+    "bluetooth"
+  ]
+}
