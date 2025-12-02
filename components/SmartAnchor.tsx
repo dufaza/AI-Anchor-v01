@@ -543,10 +543,29 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                     {sensorData.qx === undefined && <span className="text-red-500 font-bold">NO DATA</span>}
                                 </div>
                                 <div className="grid grid-cols-4 gap-1 text-center">
-                                    <div><span className="opacity-50 text-[8px] block">QX</span><span className="text-white font-bold">{sensorData.qx?.toFixed(3) || '-'}</span></div>
-                                    <div><span className="opacity-50 text-[8px] block">QY</span><span className="text-white font-bold">{sensorData.qy?.toFixed(3) || '-'}</span></div>
-                                    <div><span className="opacity-50 text-[8px] block">QZ</span><span className="text-white font-bold">{sensorData.qz?.toFixed(3) || '-'}</span></div>
-                                    <div><span className="opacity-50 text-[8px] block">QW</span><span className="text-white font-bold">{sensorData.qw?.toFixed(3) || '-'}</span></div>
+                                    {/* QX - Primary influence: Roll */}
+                                    <div>
+                                        <span className="opacity-50 text-[8px] block text-blue-300">QX (Roll)</span>
+                                        <span className="text-white font-bold">{sensorData.qx?.toFixed(3) || '-'}</span>
+                                    </div>
+                                    {/* QY - Primary influence: Pitch */}
+                                    <div>
+                                        <span className="opacity-50 text-[8px] block text-red-300">QY (Pitch)</span>
+                                        <span className="text-white font-bold">{sensorData.qy?.toFixed(3) || '-'}</span>
+                                    </div>
+                                    {/* QZ - Primary influence: Yaw */}
+                                    <div>
+                                        <span className="opacity-50 text-[8px] block text-green-300">QZ (Yaw)</span>
+                                        <span className="text-white font-bold">{sensorData.qz?.toFixed(3) || '-'}</span>
+                                    </div>
+                                    {/* QW - Scalar */}
+                                    <div>
+                                        <span className="opacity-50 text-[8px] block text-gray-400">QW (Scal)</span>
+                                        <span className="text-white font-bold">{sensorData.qw?.toFixed(3) || '-'}</span>
+                                    </div>
+                                </div>
+                                <div className="mt-1 text-[8px] text-center italic opacity-60">
+                                    * Raw rotation vectors. Qx/Qy/Qz define the axis, Qw the angle.
                                 </div>
                             </div>
                          </div>
