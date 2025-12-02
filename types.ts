@@ -47,6 +47,8 @@ export interface SensorData {
   accX?: number;
   accY?: number;
   accZ?: number;
+  // Flag to confirm raw data stream is active (for AI logging validation)
+  hasRawAccel?: boolean;
 }
 
 export interface ChainData {

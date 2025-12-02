@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Bluetooth, CheckCircle, AlertTriangle, Wifi, Battery, ShieldCheck, ShieldAlert, Unlock, Activity, BarChart3, Layers, Link as LinkIcon, ThumbsUp, Gauge, Scale, ArrowDown, MoveVertical, MoveHorizontal, Ruler, RefreshCw, Info, Weight, Waves, Compass, Play, ArrowDownCircle, Anchor, ArrowDownToLine, Ship, CheckCircle2, Gamepad2, Timer, ClipboardCheck, ChevronRight, Download, FileText, CircleDot, CircleOff, RotateCw, Sigma, Wind } from 'lucide-react';
 import { SensorData, AnchorConfig, ChainData, SmartAnchorState, AppTab, BoatData, RecordingStats } from '../types';
@@ -773,12 +774,29 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                         
                         {/* MANUAL RECORDING CONTROL */}
                         {!isRecording && !recordingStats && (
-                             <button 
-                                onClick={onStartRecording}
-                                className="w-full py-2 rounded-xl font-bold text-sm bg-ocean-800 text-ocean-300 border border-ocean-700 hover:bg-ocean-700 flex justify-center items-center gap-2 transition-all active:scale-95"
-                            >
-                                <CircleDot className="w-4 h-4 text-red-500" /> Manual Record Start
-                            </button>
+                             <div className="space-y-2">
+                                {/* RAW DATA INDICATOR */}
+                                <div className="flex items-center justify-between px-2 mb-2">
+                                    <span className="text-[10px] font-bold text-ocean-400 uppercase tracking-wider">Data Stream</span>
+                                    <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${sensorData.hasRawAccel ? 'bg-safe-900/30 text-safe-500 border-safe-500/30' : 'bg-red-900/30 text-red-500 border-red-500/30'}`}>
+                                        <Activity className="w-3 h-3" />
+                                        {sensorData.hasRawAccel ? 'RAW LINKED' : 'NO RAW DATA'}
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={onStartRecording}
+                                    disabled={!sensorData.hasRawAccel && config.sensorType !== 'SIMULATOR'}
+                                    className={`w-full py-2 rounded-xl font-bold text-sm border flex justify-center items-center gap-2 transition-all active:scale-95 ${
+                                        !sensorData.hasRawAccel && config.sensorType !== 'SIMULATOR'
+                                        ? 'bg-ocean-800 text-gray-500 border-ocean-700 cursor-not-allowed'
+                                        : 'bg-ocean-800 text-ocean-300 border-ocean-700 hover:bg-ocean-700'
+                                    }`}
+                                >
+                                    <CircleDot className={`w-4 h-4 ${!sensorData.hasRawAccel && config.sensorType !== 'SIMULATOR' ? 'text-gray-500' : 'text-red-500'}`} /> 
+                                    Manual Record Start
+                                </button>
+                            </div>
                         )}
 
                         {isRecording && (

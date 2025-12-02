@@ -1,4 +1,5 @@
 
+
 import { SensorData, SensorType } from '../types';
 
 // ===========================================================================
@@ -12,11 +13,21 @@ const TI_UUIDS = {
 };
 
 // ===========================================================================
-// CONFIGURATION STM32 SENSOR TILE BOX PRO
+// CONFIGURATION STM32 SENSOR TILE BOX PRO (BlueST Protocol)
 // ===========================================================================
 const STM32_UUIDS = {
     SERVICE: '00000000-0001-11e1-9ab4-0002a5d5c51b',
-    DATA:    '00000100-0001-11e1-ac36-0002a5d5c51b'
+    
+    // Feature: Sensor Fusion (Compact Quaternions) - Pour Pitch/Roll/Yaw Stable
+    // Bitmask: 0x100
+    CHAR_FUSION: '00000100-0001-11e1-ac36-0002a5d5c51b', 
+
+    // Feature: Accelerometer (Raw Data) - Pour l'IA et l'enregistrement
+    // Bitmask: 0x800000
+    CHAR_ACCEL:  '00800000-0001-11e1-ac36-0002a5d5c51b',
+
+    // NOTE: On ignore volontairement le Magnétomètre (00200000-...)
+    // pour éviter les perturbations magnétiques de l'ancre.
 };
  
 // ===========================================================================
@@ -54,6 +65,7 @@ const startSimulator = (onData: (data: Partial<SensorData>) => void) => {
             accX: parseFloat(accX.toFixed(2)),
             accY: parseFloat(accY.toFixed(2)),
             accZ: parseFloat(accZ.toFixed(2)),
+            hasRawAccel: true, // Mock raw capability for simulator
             lastUpdate: Date.now(),
             isConnected: true,
             battery: 85,
@@ -116,6 +128,7 @@ const parseTISensorData = (data: DataView): Partial<SensorData> => {
             accX: parseFloat(accX.toFixed(2)),
             accY: parseFloat(accY.toFixed(2)),
             accZ: parseFloat(accZ.toFixed(2)),
+            hasRawAccel: true, // TI data is derived from raw accel, so it counts
             lastUpdate: Date.now(),
             isConnected: true 
         };
@@ -149,11 +162,7 @@ const connectTI = async (onData: (data: Partial<SensorData>) => void, onDisconne
     const periodChar = await service.getCharacteristic(TI_UUIDS.PERIOD);
     const dataChar = await service.getCharacteristic(TI_UUIDS.DATA);
 
-    // ============================================================
-    // ROBUST SEQUENCE (Modified for 10Hz Limit)
-    // ============================================================
-
-    // 1. Subscribe First (Most robust for iOS)
+    // 1. Subscribe First
     console.log("TI: Starting Notifications...");
     await dataChar.startNotifications();
     dataChar.addEventListener('characteristicvaluechanged', (e: any) => {
@@ -164,17 +173,12 @@ const connectTI = async (onData: (data: Partial<SensorData>) => void, onDisconne
     console.log("TI: Enabling Sensors (0x38)...");
     await configChar.writeValue(new Uint8Array([0x38, 0x00]));
 
-    // 3. Wait for Wakeup (Essential)
-    console.log("TI: Waiting for sensor wakeup (1s)...");
+    // 3. Wait for Wakeup
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // 4. Write Period (0x0A = 100ms = 10Hz)
-    // Hardware rejected 0x02 (20ms), so we fall back to 0x0A (Standard)
     console.log("TI: Setting Period to 100ms / 10Hz...");
     await periodChar.writeValue(new Uint8Array([0x0A]));
-    
-    // Note: Removed read verification to prevent crashing. 
-    // We assume 100ms is accepted as it is the standard firmware limit.
     
     console.log("TI: Initialization Complete.");
     return device;
@@ -185,8 +189,10 @@ const connectTI = async (onData: (data: Partial<SensorData>) => void, onDisconne
 // DRIVER: STM32 SENSOR TILE BOX PRO
 // ===========================================================================
 
-const parseSTM32Data = (data: DataView): Partial<SensorData> => {
+// Parse Fusion Data (Quaternions) for Smooth Pitch/Roll/Yaw
+const parseSTM32Fusion = (data: DataView): Partial<SensorData> => {
     try {
+        // Expecting [Timestamp(2)] + [Qx(4)] + [Qy(4)] + [Qz(4)] = 14 bytes
         if (data.byteLength >= 14) {
              let qx = data.getFloat32(2, true);
              let qy = data.getFloat32(6, true);
@@ -216,31 +222,49 @@ const parseSTM32Data = (data: DataView): Partial<SensorData> => {
              let yaw = Math.atan2(siny_cosp, cosy_cosp) * (180 / Math.PI);
              if (yaw < 0) yaw += 360;
 
-             // Derive Static Gravity Vector (Acceleration in mg) from Euler Angles
-             // Since we use fusion, we reconstruct the gravity vector as our best approx of accel in mg.
-             const radP = pitch * Math.PI / 180;
-             const radR = roll * Math.PI / 180;
-             const g = 1000;
-             
-             const accX = g * Math.sin(radP);
-             const accY = -g * Math.sin(radR) * Math.cos(radP);
-             const accZ = g * Math.cos(radR) * Math.cos(radP);
-
+             // Only returning angles, RAW Accel is handled by separate parser
              return {
                  pitch: parseFloat(pitch.toFixed(2)),
                  roll: parseFloat(roll.toFixed(2)),
                  yaw: parseFloat(yaw.toFixed(2)),
-                 accX: parseFloat(accX.toFixed(2)),
-                 accY: parseFloat(accY.toFixed(2)),
-                 accZ: parseFloat(accZ.toFixed(2)),
+                 isConnected: true
+             };
+        }
+        return {};
+    } catch (e) {
+        console.error("STM32 Fusion Parse Error:", e);
+        return {};
+    }
+};
+
+// Parse Raw Accelerometer (Int16) for AI/Logging
+const parseSTM32Accel = (data: DataView): Partial<SensorData> => {
+    try {
+        // Expecting [Timestamp(2)] + [AccX(2)] + [AccY(2)] + [AccZ(2)] = 8 bytes
+        if (data.byteLength >= 8) {
+             // Read Int16 values (Little Endian)
+             const rawX = data.getInt16(2, true);
+             const rawY = data.getInt16(4, true);
+             const rawZ = data.getInt16(6, true);
+             
+             // Conversion to mg (milli-g). 
+             // Default sensitivity for +/- 2g is usually ~0.061 mg/LSB or similar.
+             // For general AI logging, we can log the Int16 or a roughly scaled mg.
+             // We'll apply a standard scaling for visualization.
+             const SENSITIVITY = 0.061; 
+             
+             return {
+                 accX: parseFloat((rawX * SENSITIVITY).toFixed(2)),
+                 accY: parseFloat((rawY * SENSITIVITY).toFixed(2)),
+                 accZ: parseFloat((rawZ * SENSITIVITY).toFixed(2)),
+                 hasRawAccel: true, // Flag this as valid raw data for logging
                  lastUpdate: Date.now(),
                  isConnected: true
              };
         }
-
         return {};
     } catch (e) {
-        console.error("STM32 Parse Error:", e);
+        console.error("STM32 Accel Parse Error:", e);
         return {};
     }
 };
@@ -248,6 +272,7 @@ const parseSTM32Data = (data: DataView): Partial<SensorData> => {
 const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisconnect: () => void) => {
     if (!navigator.bluetooth) throw new Error("Bluetooth not supported");
 
+    console.log("STM32: Scanning...");
     const device = await navigator.bluetooth.requestDevice({
         filters: [
             { name: 'STB_PRO' },         
@@ -261,16 +286,37 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
     if (!device.gatt) throw new Error("No GATT Server");
     
     device.addEventListener('gattserverdisconnected', onDisconnect);
+    console.log("STM32: Connecting GATT...");
     const server = await device.gatt.connect();
     activeGattServer = server;
 
+    console.log("STM32: Getting Primary Service...");
     const service = await server.getPrimaryService(STM32_UUIDS.SERVICE);
     
-    const dataChar = await service.getCharacteristic(STM32_UUIDS.DATA);
-    await dataChar.startNotifications();
-    dataChar.addEventListener('characteristicvaluechanged', (e: any) => {
-        onData(parseSTM32Data(e.target.value));
-    });
+    // --- 1. SETUP FUSION (Quaternions for UI) ---
+    try {
+        console.log("STM32: Subscribing to Sensor Fusion (0x100)...");
+        const fusionChar = await service.getCharacteristic(STM32_UUIDS.CHAR_FUSION);
+        await fusionChar.startNotifications();
+        fusionChar.addEventListener('characteristicvaluechanged', (e: any) => {
+            onData(parseSTM32Fusion(e.target.value));
+        });
+    } catch (err) {
+        console.warn("STM32: Could not subscribe to Fusion.", err);
+    }
+
+    // --- 2. SETUP RAW ACCELEROMETER (For AI Logging) ---
+    try {
+        console.log("STM32: Subscribing to Raw Accel (0x800000)...");
+        // Note: This UUID depends on firmware. If standard Pro firmware, this is Accel.
+        const accelChar = await service.getCharacteristic(STM32_UUIDS.CHAR_ACCEL);
+        await accelChar.startNotifications();
+        accelChar.addEventListener('characteristicvaluechanged', (e: any) => {
+            onData(parseSTM32Accel(e.target.value));
+        });
+    } catch (err) {
+        console.warn("STM32: Could not subscribe to Raw Accel. Logging might be empty.", err);
+    }
 
     return device;
 };
