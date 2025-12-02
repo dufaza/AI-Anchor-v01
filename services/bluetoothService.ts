@@ -220,6 +220,16 @@ const parseSTM32Fusion = (data: DataView): Partial<SensorData> => {
              let sumSq = qx*qx + qy*qy + qz*qz;
              let qw = Math.sqrt(Math.max(0.0, 1.0 - sumSq));
 
+             // Normalize Quaternion to prevent Math errors in conversion
+             // (Fixes Yaw issues if sensor is slightly uncalibrated)
+             const mag = Math.sqrt(qx*qx + qy*qy + qz*qz + qw*qw);
+             if (mag > 0) {
+                 qx /= mag;
+                 qy /= mag;
+                 qz /= mag;
+                 qw /= mag;
+             }
+
              // Euler Angles (Tait-Bryan Z-Y-X sequence)
              // Roll (x-axis), Pitch (y-axis), Yaw (z-axis)
              
@@ -342,6 +352,9 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
     } catch (err) {
         console.warn("STM32: Could not subscribe to Fusion.", err);
     }
+
+    // DELAY FOR IOS STABILITY (Subscribing too fast can fail on iPhone)
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // --- 2. SETUP RAW ACCELEROMETER (For AI Logging) ---
     try {

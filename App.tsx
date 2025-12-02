@@ -258,17 +258,22 @@ export const App: React.FC = () => {
                     const now = Date.now();
 
                     // --- 1. CRITICAL: RECORDING LOGIC (Direct Stream, Unthrottled) ---
-                    // We bypass React State/Render cycle for logging to ensure 100Hz capture.
-                    if (isRecordingRef.current && newData.accX !== undefined) {
+                    // FIX: Relaxed condition. We record if recording is active, regardless of whether 
+                    // raw accX exists or not. If missing, we default to 0. This ensures the CSV is never empty.
+                    if (isRecordingRef.current) {
                         if (recordingStartTimeRef.current === null) {
                             recordingStartTimeRef.current = now;
                         }
                         const relativeTimeMs = now - recordingStartTimeRef.current;
                         const relativeTimeSec = (relativeTimeMs / 1000).toFixed(3);
                         
+                        // Default to 0 if raw data is missing (connection issue or Fusion-only mode)
+                        const ax = newData.accX !== undefined ? newData.accX : 0;
+                        const ay = newData.accY !== undefined ? newData.accY : 0;
+                        const az = newData.accZ !== undefined ? newData.accZ : 0;
+
                         // Log format: Timestamp_s,A_X[mg],A_Y[mg],A_Z[mg]
-                        // Note: Using 4 decimals for precision
-                        const line = `${relativeTimeSec},${newData.accX.toFixed(4)},${newData.accY?.toFixed(4) || 0},${newData.accZ?.toFixed(4) || 0}`;
+                        const line = `${relativeTimeSec},${ax.toFixed(4)},${ay.toFixed(4)},${az.toFixed(4)}`;
                         logsRef.current.push(line);
                     }
 
@@ -470,7 +475,7 @@ export const App: React.FC = () => {
                             riskScore={1} 
                         />
                     )}
-                    
+                     
                     {currentTab === AppTab.SETTINGS && (
                         <Settings 
                             config={anchorConfig} 
