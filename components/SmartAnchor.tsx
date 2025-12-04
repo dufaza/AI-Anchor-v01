@@ -619,27 +619,30 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
 
         const { effectiveLimits, activeDrivers, vigilanceMultiplier, hwFactor, scopeMultiplier } = riskContext;
 
-        // Helper for Progress Bar
-        const MotionBar = ({ label, icon: Icon, current, max }: { label: string, icon: any, current: number, max: number }) => {
-            const pct = Math.min(100, (current / max) * 100);
-            let color = "bg-safe-500";
-            if (pct > 100) color = "bg-alert-500 animate-pulse";
-            else if (pct > 75) color = "bg-orange-500";
-            else if (pct > 50) color = "bg-yellow-500";
+        // RESTORED: MotionBar (Colored Progress Bar)
+        const MotionBar = ({ label, icon: Icon, value, max, color }: { label: string, icon: any, value: number, max: number, color: string }) => {
+            const pct = Math.min(100, (value / max) * 100);
             
+            // Dynamic color logic: Use provided base color, but override with Orange/Red based on severity
+            let barColor = color;
+            if (pct > 75) barColor = "bg-orange-500";
+            if (pct >= 100) barColor = "bg-alert-500 animate-pulse";
+
             return (
-                <div className="flex flex-col gap-1 w-full">
-                    <div className="flex justify-between items-end">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-ocean-300">
-                             <Icon className="w-3 h-3" /> {label}
-                        </div>
-                        <div className="font-mono text-xs">
-                             <span className={`font-bold ${pct > 100 ? 'text-red-500' : 'text-white'}`}>{current.toFixed(0)}°</span>
-                             <span className="text-ocean-500 text-[10px]"> / {max.toFixed(0)}°</span>
+                <div className="w-full">
+                    <div className="flex justify-between items-end mb-1">
+                        <span className="text-[10px] font-bold text-ocean-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <Icon className="w-3 h-3" /> {label}
+                        </span>
+                        <div className="text-xs font-mono">
+                            <span className={`font-bold ${pct >= 100 ? 'text-alert-500' : 'text-white'}`}>
+                                {value.toFixed(0)}°
+                            </span>
+                            <span className="text-ocean-500 text-[10px] ml-1">/ {max}°</span>
                         </div>
                     </div>
-                    <div className="h-1.5 w-full bg-ocean-900 rounded-full overflow-hidden">
-                        <div className={`h-full ${color} transition-all duration-300`} style={{ width: `${pct}%` }}></div>
+                    <div className="h-2 w-full bg-ocean-900/50 rounded-full border border-ocean-700/30 overflow-hidden">
+                        <div className={`h-full ${barColor} transition-all duration-300`} style={{ width: `${pct}%` }}></div>
                     </div>
                 </div>
             );
@@ -654,10 +657,10 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                     <div className="flex gap-2"><span className="flex items-center gap-1 text-xs font-mono px-2 py-1 rounded bg-safe-900 text-safe-500">ACTIVE <Wifi className="w-3 h-3 animate-pulse" /></span></div>
                 </div>
 
-                <div className="flex flex-1 gap-3 min-h-0">
+                <div className="flex gap-3">
                     
                     {/* LEFT: LED RISK GAUGE */}
-                    <div className="w-16 flex flex-col items-center gap-1 relative py-1">
+                    <div className="w-16 flex flex-col items-center gap-1 relative py-1 flex-shrink-0">
                         {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((level) => {
                             const isActive = riskScore === level;
                             let baseColor = "bg-safe-500";
@@ -695,7 +698,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                     <div className={`flex-1 flex flex-col gap-3 ${alarmTriggered ? 'animate-pulse' : ''}`}>
                         
                         {/* 1. Main Info Window - Compacted */}
-                        <div className={`bg-ocean-800 rounded-2xl border p-3 relative overflow-hidden flex flex-col justify-start ${alarmTriggered ? 'border-red-500 bg-alert-900/20' : 'border-ocean-700'}`}>
+                        <div className={`bg-ocean-800 rounded-2xl border p-4 relative flex flex-col gap-4 ${alarmTriggered ? 'border-red-500 bg-alert-900/20' : 'border-ocean-700'}`}>
                             {alarmTriggered && (
                                 <div className="absolute inset-0 z-50 bg-alert-900/90 flex flex-col items-center justify-center text-center p-2 animate-in fade-in">
                                     <ShieldAlert className="w-12 h-12 text-red-500 mb-2 animate-bounce" />
@@ -705,7 +708,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                             )}
                             
                             {/* Header Stats: TREND (COMPACT) */}
-                            <div className="text-center border-b border-ocean-700/50 pb-2 mb-2">
+                            <div className="text-center border-b border-ocean-700/50 pb-2">
                                 <p className="text-[10px] font-bold text-ocean-400 uppercase tracking-wider mb-0.5">Current Trend</p>
                                 <div className={`flex items-center justify-center gap-2 text-2xl font-black uppercase ${riskTrend === 'rising' ? 'text-alert-400' : 'text-safe-400'}`}>
                                     {riskTrend === 'rising' ? <ArrowDown className="w-6 h-6 rotate-180" /> : <ArrowDown className="w-6 h-6" />}
@@ -713,24 +716,25 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                 </div>
                             </div>
 
-                            {/* Middle: Motion Dashboard (COMPACT) */}
-                            <div className="flex flex-col gap-2 mb-2 px-1">
-                                <p className="text-[9px] font-bold text-ocean-500 uppercase tracking-wider text-center">Motion Monitor (Current / Max Allowed)</p>
-                                
-                                <MotionBar label="PITCH" icon={MoveVertical} current={devPitch} max={effectiveLimits.pitch} />
-                                <MotionBar label="ROLL" icon={MoveHorizontal} current={devRoll} max={effectiveLimits.roll} />
-                                <MotionBar label="YAW" icon={RotateCw} current={devYaw} max={effectiveLimits.yaw} />
+                            {/* Middle: SLIDERS DASHBOARD (Restored MotionBars) */}
+                            <div className="flex flex-col gap-4 px-1">
+                                {/* Pitch: Safe Green base */}
+                                <MotionBar label="PITCH" icon={MoveVertical} value={devPitch} max={effectiveLimits.pitch} color="bg-safe-500" />
+                                {/* Roll: Blue base */}
+                                <MotionBar label="ROLL" icon={MoveHorizontal} value={devRoll} max={effectiveLimits.roll} color="bg-blue-400" />
+                                {/* Yaw: Yellow base */}
+                                <MotionBar label="YAW" icon={RotateCw} value={devYaw} max={effectiveLimits.yaw} color="bg-yellow-400" />
                                 
                                 {vigilanceMultiplier > 1.0 && (
-                                    <p className="text-[9px] text-orange-400 text-center italic mt-0.5">
+                                    <p className="text-[9px] text-orange-400 text-center italic mt-1">
                                         Note: Limits reduced by {vigilanceMultiplier}x due to Risks.
                                     </p>
                                 )}
                             </div>
 
                             {/* Bottom: Active Contributors (Clearer) */}
-                            <div className="flex-1 flex flex-col justify-end border-t border-ocean-700/50 pt-1">
-                                <p className="text-[9px] font-bold text-ocean-500 uppercase tracking-wider mb-1 text-center">Active Risk Factors</p>
+                            <div className="flex-1 flex flex-col justify-end border-t border-ocean-700/50 pt-2">
+                                <p className="text-[9px] font-bold text-ocean-500 uppercase tracking-wider mb-2 text-center">Active Risk Factors</p>
                                 {activeDrivers.length > 0 ? (
                                     <div className="flex flex-wrap gap-1 justify-center">
                                         {activeDrivers.map((d, i) => (
