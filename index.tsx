@@ -15,4 +15,4 @@ if (!container) {
       </React.StrictMode>
     );
     console.log('SmartAnchor: Mounted successfully');
-} 
+}  
