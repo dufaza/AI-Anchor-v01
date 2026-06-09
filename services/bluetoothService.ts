@@ -46,9 +46,7 @@ const BLEMCL_MAIN_CHARACTERISTIC_CANDIDATES = [
     '00000010-0002-11e1-ac36-0002a5d5c51b',
     '0000000f-0002-11e1-ac36-0002a5d5c51b',
     '00000014-0002-11e1-ac36-0002a5d5c51b',
-    '00e00000-0001-11e1-ac36-0002a5d5c51b',
-    STM32_UUIDS.CHAR_FUSION,
-    STM32_UUIDS.CHAR_ACCEL
+    '00e00000-0001-11e1-ac36-0002a5d5c51b'
 ];
 
 const STM32_EXT_CHARACTERISTIC_CANDIDATES = [
@@ -215,6 +213,27 @@ const logSTM32Characteristics = async (service: BluetoothRemoteGATTService, labe
         console.warn(`STM32: Could not list characteristics for ${label} service=${service.uuid}`, error);
         return `SERVICE_LABEL=${label}\nSERVICE_UUID=${service.uuid}\nCould not list characteristics: ${getBluetoothErrorName(error)} ${getBluetoothErrorMessage(error)}`;
     }
+};
+
+const withBluetoothOperationTimeout = <T,>(operation: Promise<T>, timeoutMs: number, step: string): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            const timeoutError = new Error(`${step} timed out after ${timeoutMs}ms`);
+            timeoutError.name = 'TimeoutError';
+            (timeoutError as any).operationStep = step;
+            reject(timeoutError);
+        }, timeoutMs);
+
+        operation
+            .then((result) => {
+                clearTimeout(timeout);
+                resolve(result);
+            })
+            .catch((error) => {
+                clearTimeout(timeout);
+                reject(error);
+            });
+    });
 };
 
 // ===========================================================================
@@ -485,6 +504,90 @@ const parseSTM32Accel = (data: DataView): Partial<SensorData> => {
     };
 };
 
+const connectBLEMCL = async (device: BluetoothDevice, onDisconnect: () => void) => {
+    let step = 'gatt.connect';
+    let serviceUuid: string | null = STM32_UUIDS.SERVICE;
+    let characteristicUuid: string | null = null;
+    let lastCandidateError: any = null;
+
+    try {
+        if (!device.gatt) throw new Error("No GATT Server");
+
+        console.log("BLEMCL mode: skipping 10Hz setup write");
+        emitBluetoothDebug({
+            type: 'status',
+            deviceName: device.name || 'Unavailable',
+            status: 'connecting',
+            subscribedUuids: []
+        });
+
+        device.addEventListener('gattserverdisconnected', onDisconnect);
+        console.log("BLEMCL: Connecting GATT...");
+        const server = await withBluetoothOperationTimeout(device.gatt.connect(), 3000, 'gatt.connect');
+        activeGattServer = server;
+        console.log("BLEMCL: GATT connected OK");
+
+        step = 'getPrimaryService';
+        console.log(`BLEMCL: Getting primary service ${STM32_UUIDS.SERVICE}...`);
+        const service = await withBluetoothOperationTimeout(server.getPrimaryService(STM32_UUIDS.SERVICE), 3000, 'getPrimaryService');
+        console.log(`BLEMCL: Service found: ${STM32_UUIDS.SERVICE}`);
+
+        recentSTM32RawNotificationLogs = [];
+        lastSTM32NotificationAtByUuid = {};
+
+        for (const candidateUuid of BLEMCL_MAIN_CHARACTERISTIC_CANDIDATES) {
+            characteristicUuid = candidateUuid;
+
+            try {
+                step = `getCharacteristic:${candidateUuid}`;
+                const characteristic = await withBluetoothOperationTimeout(service.getCharacteristic(candidateUuid), 2000, step);
+                console.log(`BLEMCL: Candidate characteristic found: ${candidateUuid}`);
+
+                if (!characteristic.properties.notify) {
+                    console.log(`BLEMCL: Candidate characteristic does not support notify, skipping: ${candidateUuid}`);
+                    continue;
+                }
+
+                step = `startNotifications:${candidateUuid}`;
+                await withBluetoothOperationTimeout(characteristic.startNotifications(), 2000, step);
+                console.log(`BLEMCL: Notifications started on ${candidateUuid}`);
+
+                characteristic.addEventListener('characteristicvaluechanged', (e: any) => {
+                    logSTM32RawNotification(candidateUuid, e.target.value);
+                });
+
+                console.log("BLEMCL setup complete");
+                console.log(`Subscribed characteristics: ${candidateUuid}`);
+                emitBluetoothDebug({
+                    type: 'status',
+                    deviceName: device.name || 'Unavailable',
+                    status: 'connected',
+                    subscribedUuids: [candidateUuid]
+                });
+
+                return device;
+            } catch (candidateError) {
+                lastCandidateError = candidateError;
+                console.warn(`BLEMCL: ${step} failed`, candidateError);
+            }
+        }
+
+        const error = new Error("No BLEMCL notification characteristic could be started");
+        throw enrichBluetoothError(lastCandidateError || error, step, device, serviceUuid, characteristicUuid, null);
+    } catch (error) {
+        const errorStep = (error as any)?.operationStep || step;
+        const enriched = enrichBluetoothError(error, errorStep, device, serviceUuid, characteristicUuid, null);
+        console.error(enriched.message, error);
+        emitBluetoothDebug({
+            type: 'status',
+            deviceName: device?.name || 'Unavailable',
+            status: 'failed',
+            subscribedUuids: []
+        });
+        throw enriched;
+    }
+};
+
 const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisconnect: () => void) => {
     if (!navigator.bluetooth) throw new Error("Bluetooth not supported");
 
@@ -523,7 +626,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         console.log(`STM32: Device selected: device.name=${device.name || 'Unavailable'}, device.id=${device.id || 'Unavailable'}`);
         const isBLEMCL = (device.name || '').toUpperCase().includes('BLEMCL');
         if (isBLEMCL) {
-            console.log("BLEMCL mode: skipping 10Hz setup write");
+            return connectBLEMCL(device, onDisconnect);
         }
         emitBluetoothDebug({
             type: 'status',
@@ -595,7 +698,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
             service = await withSetupTimeout(server.getPrimaryService(STM32_UUIDS.SERVICE));
             console.log(`STM32: Service found: ${STM32_UUIDS.SERVICE}`);
             availableCharacteristics = await withSetupTimeout(logSTM32Characteristics(service, 'PRIMARY'));
-            candidateServices.push({ label: 'PRIMARY', service, candidates: isBLEMCL ? BLEMCL_MAIN_CHARACTERISTIC_CANDIDATES : STM32_MAIN_CHARACTERISTIC_CANDIDATES });
+            candidateServices.push({ label: 'PRIMARY', service, candidates: STM32_MAIN_CHARACTERISTIC_CANDIDATES });
             try {
                 const extensionService = await withSetupTimeout(server.getPrimaryService(STM32_UUIDS.SERVICE_EXT));
                 console.log(`STM32: Extension service found: ${STM32_UUIDS.SERVICE_EXT}`);
