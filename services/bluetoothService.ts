@@ -317,6 +317,14 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
             { namePrefix: 'ST' },   // STMicroelectronics
             { namePrefix: 'Sen' },  // SensorTile
             { namePrefix: 'Blue' }, // BlueMS
+            { namePrefix: 'BLE' },
+            { namePrefix: 'BLEMLC' },
+            { namePrefix: 'STM32' },
+            { namePrefix: 'Sensor' },
+            { namePrefix: 'SensorBox' },
+            { namePrefix: 'SensorTile' },
+            { namePrefix: 'STBOX' },
+            { namePrefix: 'HSD' },
             { namePrefix: 'HSD2v31' }    // DT_ 
         ],
         // CRITICAL: We MUST list the service here to access it later, 
