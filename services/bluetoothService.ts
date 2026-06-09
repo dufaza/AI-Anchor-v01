@@ -601,29 +601,10 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
 
     try {
         console.log("STM32: Requesting Device...");
-        // FIX: Reverting to Name-Based Filters ONLY.
-        // Filtering by Service UUID (STM32_UUIDS.SERVICE) often hides the device on iOS 
-        // because the SensorTile doesn't always advertise the UUID in the public packet.
+        // BLEMCL/Bluefy minimal permission request for iOS diagnostics.
         device = await navigator.bluetooth.requestDevice({
-            filters: [
-                { namePrefix: 'BC' },   // Box Connect (often BCST...)
-                { namePrefix: 'ST' },   // STMicroelectronics
-                { namePrefix: 'Sen' },  // SensorTile
-                { namePrefix: 'Blue' }, // BlueMS
-                { namePrefix: 'BLE' },
-                { namePrefix: 'BLEMCL' },
-                { namePrefix: 'BLEMLC' },
-                { namePrefix: 'STM32' },
-                { namePrefix: 'Sensor' },
-                { namePrefix: 'SensorBox' },
-                { namePrefix: 'SensorTile' },
-                { namePrefix: 'STBOX' },
-                { namePrefix: 'HSD' },
-                { namePrefix: 'HSD2v31' }    // DT_ 
-            ],
-            // CRITICAL: We MUST list the service here to access it later, 
-            // even if we don't filter by it during discovery.
-            optionalServices: [STM32_UUIDS.SERVICE, STM32_UUIDS.SERVICE_EXT]
+            filters: [{ namePrefix: 'BLEMCL' }],
+            optionalServices: [STM32_UUIDS.SERVICE]
         });
         console.log(`STM32: Device selected: device.name=${device.name || 'Unavailable'}, device.id=${device.id || 'Unavailable'}`);
         const isBLEMCL = (device.name || '').toUpperCase().includes('BLEMCL');
