@@ -93,6 +93,34 @@ const enrichBluetoothError = (
     return enriched;
 };
 
+const logSTM32Characteristics = async (service: BluetoothRemoteGATTService, label: string) => {
+    console.log('=== STM32 CHARACTERISTICS ===');
+    console.log(`SERVICE_LABEL=${label}`);
+    console.log(`SERVICE_UUID=${service.uuid}`);
+    try {
+        const characteristics = await (service as any).getCharacteristics();
+        if (!characteristics || characteristics.length === 0) {
+            console.warn(`STM32: No characteristics discovered for ${label} service=${service.uuid}`);
+            return;
+        }
+
+        characteristics.forEach((characteristic: BluetoothRemoteGATTCharacteristic) => {
+            console.log(
+                [
+                    'Characteristic:',
+                    `UUID=${characteristic.uuid}`,
+                    `READ=${characteristic.properties.read}`,
+                    `WRITE=${characteristic.properties.write}`,
+                    `NOTIFY=${characteristic.properties.notify}`,
+                    `INDICATE=${characteristic.properties.indicate}`
+                ].join('\n')
+            );
+        });
+    } catch (error) {
+        console.warn(`STM32: Could not list characteristics for ${label} service=${service.uuid}`, error);
+    }
+};
+
 // ===========================================================================
 // DRIVER: SIMULATOR
 // ===========================================================================
@@ -427,6 +455,15 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         try {
             service = await server.getPrimaryService(STM32_UUIDS.SERVICE);
             console.log(`STM32: Service found: ${STM32_UUIDS.SERVICE}`);
+            await logSTM32Characteristics(service, 'PRIMARY');
+            try {
+                const extensionService = await server.getPrimaryService(STM32_UUIDS.SERVICE_EXT);
+                console.log(`STM32: Extension service found: ${STM32_UUIDS.SERVICE_EXT}`);
+                await logSTM32Characteristics(extensionService, 'EXTENSION');
+            } catch (extensionServiceError) {
+                const enrichedExtension = enrichBluetoothError(extensionServiceError, step, device, STM32_UUIDS.SERVICE_EXT, characteristicUuid);
+                console.warn(enrichedExtension.message, extensionServiceError);
+            }
         } catch (primaryServiceError) {
             const enrichedPrimary = enrichBluetoothError(primaryServiceError, step, device, serviceUuid, characteristicUuid);
             console.warn(enrichedPrimary.message, primaryServiceError);
@@ -434,6 +471,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
             serviceUuid = STM32_UUIDS.SERVICE_EXT;
             service = await server.getPrimaryService(STM32_UUIDS.SERVICE_EXT);
             console.log(`STM32: Service found: ${STM32_UUIDS.SERVICE_EXT}`);
+            await logSTM32Characteristics(service, 'EXTENSION');
         }
 
         console.log("STM32: Getting Characteristics...");
