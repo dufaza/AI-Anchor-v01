@@ -104,7 +104,9 @@ const Settings: React.FC<SettingsProps> = ({
             const detail = (event as CustomEvent).detail || {};
             setBleDebug(prev => {
                 if (detail.type === 'packet') {
-                    const packetLine = `${detail.uuid || 'unknown'} | ${detail.byteLength ?? '?'} bytes | ${detail.hex || '-'}`;
+                    const interval = detail.intervalMs !== null && detail.intervalMs !== undefined ? `${detail.intervalMs}ms` : 'first';
+                    const hz = detail.estimatedHz ? `${detail.estimatedHz}Hz` : 'n/a';
+                    const packetLine = `${detail.uuid || 'unknown'} | ${detail.byteLength ?? '?'} bytes | ${interval} | ${hz} | ${detail.hex || '-'}`;
                     return {
                         ...prev,
                         packets: [packetLine, ...prev.packets].slice(0, 10)
@@ -165,8 +167,8 @@ const Settings: React.FC<SettingsProps> = ({
         try {
             // Visual feedback updated for robust sequence
             // SEQUENCE: Subscribing -> Enabling -> Period -> Done
-            const step1 = setTimeout(() => setConnectionStatusText('Enabling Sensors...'), 500);
-            const step2 = setTimeout(() => setConnectionStatusText('Setting 10Hz (100ms)...'), 2000);
+            const step1 = setTimeout(() => setConnectionStatusText(config.sensorType === 'STM32_TILEBOX' ? 'Subscribing to notifications...' : 'Enabling Sensors...'), 500);
+            const step2 = setTimeout(() => setConnectionStatusText(config.sensorType === 'STM32_TILEBOX' ? 'Subscribing to notifications...' : 'Setting 10Hz (100ms)...'), 2000);
             const step3 = setTimeout(() => setConnectionStatusText('Finalizing Setup...'), 3500);
 
             await onConnect();
@@ -178,11 +180,8 @@ const Settings: React.FC<SettingsProps> = ({
             
             setIsConnecting(false);
             // This state change triggers the useEffect above
-            if (config.sensorType === 'STM32_TILEBOX') {
-                setConnectionStatusText('Connected');
-            } else {
-                setShowConnectSuccess(true);
-            }
+            setConnectionStatusText('Connected');
+            setShowConnectSuccess(true);
 
         } catch (e: any) {
             clearTimeout(safetyTimeout);

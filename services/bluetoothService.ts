@@ -64,6 +64,7 @@ const STM32_SETUP_TIMEOUT_MS = 8000;
 let activeInterval: any = null;
 let activeGattServer: BluetoothRemoteGATTServer | null = null;
 let recentSTM32RawNotificationLogs: string[] = [];
+let lastSTM32NotificationAtByUuid: Record<string, number> = {};
 
 const emitBluetoothDebug = (detail: any) => {
     window.dispatchEvent(new CustomEvent('smartanchor-ble-debug', { detail }));
@@ -136,7 +137,7 @@ const enrichBluetoothError = (
     return enriched;
 };
 
-const formatSTM32RawPayload = (uuid: string, data: DataView) => {
+const formatSTM32RawPayload = (uuid: string, data: DataView, intervalMs: number | null, estimatedHz: number | null) => {
     const bytes = Array.from({ length: data.byteLength }, (_, index) => data.getUint8(index));
     const hex = bytes.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
     const decimal = bytes.join(' ');
@@ -145,12 +146,19 @@ const formatSTM32RawPayload = (uuid: string, data: DataView) => {
         `characteristic.uuid=${uuid}`,
         `byteLength=${data.byteLength}`,
         `payload.hex=${hex}`,
-        `payload.decimal=${decimal}`
+        `payload.decimal=${decimal}`,
+        `interval_ms=${intervalMs !== null ? intervalMs : 'first'}`,
+        `estimated_hz=${estimatedHz !== null ? estimatedHz.toFixed(2) : 'n/a'}`
     ].join('\n');
 };
 
 const logSTM32RawNotification = (uuid: string, data: DataView) => {
-    const logEntry = formatSTM32RawPayload(uuid, data);
+    const now = Date.now();
+    const previousAt = lastSTM32NotificationAtByUuid[uuid] || null;
+    const intervalMs = previousAt ? now - previousAt : null;
+    const estimatedHz = intervalMs && intervalMs > 0 ? 1000 / intervalMs : null;
+    lastSTM32NotificationAtByUuid[uuid] = now;
+    const logEntry = formatSTM32RawPayload(uuid, data, intervalMs, estimatedHz);
     const bytes = Array.from({ length: data.byteLength }, (_, index) => data.getUint8(index));
     const hex = bytes.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
     recentSTM32RawNotificationLogs.push(logEntry);
@@ -160,7 +168,9 @@ const logSTM32RawNotification = (uuid: string, data: DataView) => {
         type: 'packet',
         uuid,
         byteLength: data.byteLength,
-        hex
+        hex,
+        intervalMs,
+        estimatedHz: estimatedHz !== null ? estimatedHz.toFixed(2) : null
     });
 };
 
@@ -512,6 +522,9 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         });
         console.log(`STM32: Device selected: device.name=${device.name || 'Unavailable'}, device.id=${device.id || 'Unavailable'}`);
         const isBLEMCL = (device.name || '').toUpperCase().includes('BLEMCL');
+        if (isBLEMCL) {
+            console.log("BLEMCL mode: skipping 10Hz setup write");
+        }
         emitBluetoothDebug({
             type: 'status',
             deviceName: device.name || 'Unavailable',
@@ -608,6 +621,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
 
         console.log("STM32: Getting candidate characteristics for raw BLEMCL notifications...");
         recentSTM32RawNotificationLogs = [];
+        lastSTM32NotificationAtByUuid = {};
         let subscribedCount = 0;
         let lastCandidateError: any = null;
         const subscribedUuids: string[] = [];
