@@ -523,14 +523,14 @@ const connectBLEMCL = async (device: BluetoothDevice, onDisconnect: () => void) 
 
         device.addEventListener('gattserverdisconnected', onDisconnect);
         console.log("BLEMCL: Connecting GATT...");
-        const server = await withBluetoothOperationTimeout(device.gatt.connect(), 3000, 'gatt.connect');
+        const server = await withBluetoothOperationTimeout(device.gatt.connect(), 12000, 'gatt.connect');
         activeGattServer = server;
         console.log("BLEMCL: GATT connected OK");
 
         step = 'getPrimaryService';
-        console.log(`BLEMCL: Getting primary service ${STM32_UUIDS.SERVICE}...`);
-        const service = await withBluetoothOperationTimeout(server.getPrimaryService(STM32_UUIDS.SERVICE), 3000, 'getPrimaryService');
-        console.log(`BLEMCL: Service found: ${STM32_UUIDS.SERVICE}`);
+        console.log(`BLEMCL getPrimaryService start ${STM32_UUIDS.SERVICE}`);
+        const service = await withBluetoothOperationTimeout(server.getPrimaryService(STM32_UUIDS.SERVICE), 15000, 'getPrimaryService');
+        console.log(`BLEMCL getPrimaryService OK ${STM32_UUIDS.SERVICE}`);
 
         recentSTM32RawNotificationLogs = [];
         lastSTM32NotificationAtByUuid = {};
@@ -540,7 +540,8 @@ const connectBLEMCL = async (device: BluetoothDevice, onDisconnect: () => void) 
 
             try {
                 step = `getCharacteristic:${candidateUuid}`;
-                const characteristic = await withBluetoothOperationTimeout(service.getCharacteristic(candidateUuid), 2000, step);
+                console.log(`BLEMCL getCharacteristic start ${candidateUuid}`);
+                const characteristic = await withBluetoothOperationTimeout(service.getCharacteristic(candidateUuid), 8000, step);
                 console.log(`BLEMCL: Candidate characteristic found: ${candidateUuid}`);
 
                 if (!characteristic.properties.notify) {
@@ -549,8 +550,8 @@ const connectBLEMCL = async (device: BluetoothDevice, onDisconnect: () => void) 
                 }
 
                 step = `startNotifications:${candidateUuid}`;
-                await withBluetoothOperationTimeout(characteristic.startNotifications(), 2000, step);
-                console.log(`BLEMCL: Notifications started on ${candidateUuid}`);
+                await withBluetoothOperationTimeout(characteristic.startNotifications(), 8000, step);
+                console.log(`BLEMCL startNotifications OK ${candidateUuid}`);
 
                 characteristic.addEventListener('characteristicvaluechanged', (e: any) => {
                     logSTM32RawNotification(candidateUuid, e.target.value);
