@@ -41,6 +41,16 @@ const STM32_MAIN_CHARACTERISTIC_CANDIDATES = [
     '00000010-0001-11e1-ac36-0002a5d5c51b'
 ];
 
+const BLEMCL_MAIN_CHARACTERISTIC_CANDIDATES = [
+    '00000010-0001-11e1-ac36-0002a5d5c51b',
+    '00000010-0002-11e1-ac36-0002a5d5c51b',
+    '0000000f-0002-11e1-ac36-0002a5d5c51b',
+    '00000014-0002-11e1-ac36-0002a5d5c51b',
+    '00e00000-0001-11e1-ac36-0002a5d5c51b',
+    STM32_UUIDS.CHAR_FUSION,
+    STM32_UUIDS.CHAR_ACCEL
+];
+
 const STM32_EXT_CHARACTERISTIC_CANDIDATES = [
     '00000001-000e-11e1-ac36-0002a5d5c51b',
     '00000002-000e-11e1-ac36-0002a5d5c51b'
@@ -54,6 +64,10 @@ const STM32_SETUP_TIMEOUT_MS = 8000;
 let activeInterval: any = null;
 let activeGattServer: BluetoothRemoteGATTServer | null = null;
 let recentSTM32RawNotificationLogs: string[] = [];
+
+const emitBluetoothDebug = (detail: any) => {
+    window.dispatchEvent(new CustomEvent('smartanchor-ble-debug', { detail }));
+};
 
 const getBluetoothErrorName = (error: any) => {
     return error?.name || (typeof error === 'number' ? 'NumericBluetoothError' : 'BluetoothError');
@@ -137,9 +151,17 @@ const formatSTM32RawPayload = (uuid: string, data: DataView) => {
 
 const logSTM32RawNotification = (uuid: string, data: DataView) => {
     const logEntry = formatSTM32RawPayload(uuid, data);
+    const bytes = Array.from({ length: data.byteLength }, (_, index) => data.getUint8(index));
+    const hex = bytes.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
     recentSTM32RawNotificationLogs.push(logEntry);
     recentSTM32RawNotificationLogs = recentSTM32RawNotificationLogs.slice(-10);
     console.log(logEntry);
+    emitBluetoothDebug({
+        type: 'packet',
+        uuid,
+        byteLength: data.byteLength,
+        hex
+    });
 };
 
 const logSTM32Characteristics = async (service: BluetoothRemoteGATTService, label: string) => {
@@ -489,6 +511,13 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
             optionalServices: [STM32_UUIDS.SERVICE, STM32_UUIDS.SERVICE_EXT]
         });
         console.log(`STM32: Device selected: device.name=${device.name || 'Unavailable'}, device.id=${device.id || 'Unavailable'}`);
+        const isBLEMCL = (device.name || '').toUpperCase().includes('BLEMCL');
+        emitBluetoothDebug({
+            type: 'status',
+            deviceName: device.name || 'Unavailable',
+            status: 'connecting',
+            subscribedUuids: []
+        });
 
         if (!device.gatt) throw new Error("No GATT Server");
 
@@ -553,7 +582,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
             service = await withSetupTimeout(server.getPrimaryService(STM32_UUIDS.SERVICE));
             console.log(`STM32: Service found: ${STM32_UUIDS.SERVICE}`);
             availableCharacteristics = await withSetupTimeout(logSTM32Characteristics(service, 'PRIMARY'));
-            candidateServices.push({ label: 'PRIMARY', service, candidates: STM32_MAIN_CHARACTERISTIC_CANDIDATES });
+            candidateServices.push({ label: 'PRIMARY', service, candidates: isBLEMCL ? BLEMCL_MAIN_CHARACTERISTIC_CANDIDATES : STM32_MAIN_CHARACTERISTIC_CANDIDATES });
             try {
                 const extensionService = await withSetupTimeout(server.getPrimaryService(STM32_UUIDS.SERVICE_EXT));
                 console.log(`STM32: Extension service found: ${STM32_UUIDS.SERVICE_EXT}`);
@@ -609,6 +638,12 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
                     });
                     console.log("STM32 setup complete");
                     console.log(`STM32 subscribed UUIDs: ${subscribedUuids.join(', ')}`);
+                    emitBluetoothDebug({
+                        type: 'status',
+                        deviceName: device.name || 'Unavailable',
+                        status: 'connected',
+                        subscribedUuids
+                    });
                     return device;
                 } catch (candidateError) {
                     if (isSTM32SetupTimeout(candidateError)) throw candidateError;
@@ -629,6 +664,12 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         const errorStep = isSTM32SetupTimeout(error) ? 'finalizingSetupTimeout' : step;
         const enriched = enrichBluetoothError(error, errorStep, device, serviceUuid, characteristicUuid, availableCharacteristics);
         console.error(enriched.message, error);
+        emitBluetoothDebug({
+            type: 'status',
+            deviceName: device?.name || 'Unavailable',
+            status: 'failed',
+            subscribedUuids: []
+        });
         throw enriched;
     }
 };

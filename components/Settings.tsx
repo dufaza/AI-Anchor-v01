@@ -81,12 +81,48 @@ const Settings: React.FC<SettingsProps> = ({
     const [connectionStatusText, setConnectionStatusText] = useState('Connecting...');
     const [showConnectSuccess, setShowConnectSuccess] = useState(false);
     const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
+    const [bleDebug, setBleDebug] = useState<{
+        deviceName: string;
+        status: string;
+        subscribedUuids: string[];
+        packets: string[];
+    }>({
+        deviceName: 'Unavailable',
+        status: 'idle',
+        subscribedUuids: [],
+        packets: []
+    });
 
     // Ref to hold the latest onNavigate function to avoid useEffect re-triggers
     const onNavigateRef = useRef(onNavigate);
     useEffect(() => {
         onNavigateRef.current = onNavigate;
     }, [onNavigate]);
+
+    useEffect(() => {
+        const handleBleDebug = (event: Event) => {
+            const detail = (event as CustomEvent).detail || {};
+            setBleDebug(prev => {
+                if (detail.type === 'packet') {
+                    const packetLine = `${detail.uuid || 'unknown'} | ${detail.byteLength ?? '?'} bytes | ${detail.hex || '-'}`;
+                    return {
+                        ...prev,
+                        packets: [packetLine, ...prev.packets].slice(0, 10)
+                    };
+                }
+
+                return {
+                    ...prev,
+                    deviceName: detail.deviceName || prev.deviceName,
+                    status: detail.status || prev.status,
+                    subscribedUuids: detail.subscribedUuids || prev.subscribedUuids
+                };
+            });
+        };
+
+        window.addEventListener('smartanchor-ble-debug', handleBleDebug);
+        return () => window.removeEventListener('smartanchor-ble-debug', handleBleDebug);
+    }, []);
 
     // ROBUST NAVIGATION EFFECT
     // Triggers navigation as soon as showConnectSuccess becomes true
@@ -117,6 +153,7 @@ const Settings: React.FC<SettingsProps> = ({
     const handleConnectClick = async () => {
         setIsConnecting(true);
         setConnectionStatusText('Initializing...');
+        setBleDebug(prev => ({ ...prev, status: 'connecting', subscribedUuids: [], packets: [] }));
         
         // Safety Timeout (20s)
         const safetyTimeout = setTimeout(() => {
@@ -141,7 +178,11 @@ const Settings: React.FC<SettingsProps> = ({
             
             setIsConnecting(false);
             // This state change triggers the useEffect above
-            setShowConnectSuccess(true);
+            if (config.sensorType === 'STM32_TILEBOX') {
+                setConnectionStatusText('Connected');
+            } else {
+                setShowConnectSuccess(true);
+            }
 
         } catch (e: any) {
             clearTimeout(safetyTimeout);
@@ -301,6 +342,28 @@ const Settings: React.FC<SettingsProps> = ({
                         <Power className="w-4 h-4" /> 
                         {isConnecting ? connectionStatusText : (isConnected ? 'Disconnect' : 'Connect')}
                     </button>
+                </div>
+                <div className="bg-ocean-800 p-3 rounded-xl border border-ocean-700 text-left text-xs font-mono text-ocean-200 space-y-2 flex-shrink-0">
+                    <div className="flex justify-between gap-2">
+                        <span className="text-ocean-400">device.name</span>
+                        <span className="text-white truncate">{bleDebug.deviceName}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                        <span className="text-ocean-400">status</span>
+                        <span className={bleDebug.status === 'failed' ? 'text-alert-500' : bleDebug.status === 'connected' ? 'text-safe-500' : 'text-ocean-300'}>{bleDebug.status}</span>
+                    </div>
+                    <div>
+                        <div className="text-ocean-400 mb-1">Subscribed characteristics:</div>
+                        <div className="break-all text-white">{bleDebug.subscribedUuids.length > 0 ? bleDebug.subscribedUuids.join(', ') : '-'}</div>
+                    </div>
+                    <div>
+                        <div className="text-ocean-400 mb-1">Last packets:</div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {bleDebug.packets.length > 0 ? bleDebug.packets.map((packet, index) => (
+                                <div key={`${packet}-${index}`} className="break-all text-ocean-100">{packet}</div>
+                            )) : <div className="text-ocean-500">-</div>}
+                        </div>
+                    </div>
                 </div>
             </div>
         );
