@@ -523,13 +523,13 @@ const connectBLEMCL = async (device: BluetoothDevice, onDisconnect: () => void) 
 
         device.addEventListener('gattserverdisconnected', onDisconnect);
         console.log("BLEMCL: Connecting GATT...");
-        const server = await withBluetoothOperationTimeout(device.gatt.connect(), 12000, 'gatt.connect');
+        const server = await device.gatt.connect();
         activeGattServer = server;
         console.log("BLEMCL: GATT connected OK");
 
         step = 'getPrimaryService';
         console.log(`BLEMCL getPrimaryService start ${STM32_UUIDS.SERVICE}`);
-        const service = await withBluetoothOperationTimeout(server.getPrimaryService(STM32_UUIDS.SERVICE), 15000, 'getPrimaryService');
+        const service = await server.getPrimaryService(STM32_UUIDS.SERVICE);
         console.log(`BLEMCL getPrimaryService OK ${STM32_UUIDS.SERVICE}`);
 
         recentSTM32RawNotificationLogs = [];
@@ -541,7 +541,7 @@ const connectBLEMCL = async (device: BluetoothDevice, onDisconnect: () => void) 
             try {
                 step = `getCharacteristic:${candidateUuid}`;
                 console.log(`BLEMCL getCharacteristic start ${candidateUuid}`);
-                const characteristic = await withBluetoothOperationTimeout(service.getCharacteristic(candidateUuid), 8000, step);
+                const characteristic = await service.getCharacteristic(candidateUuid);
                 console.log(`BLEMCL: Candidate characteristic found: ${candidateUuid}`);
 
                 if (!characteristic.properties.notify) {
@@ -550,7 +550,8 @@ const connectBLEMCL = async (device: BluetoothDevice, onDisconnect: () => void) 
                 }
 
                 step = `startNotifications:${candidateUuid}`;
-                await withBluetoothOperationTimeout(characteristic.startNotifications(), 8000, step);
+                console.log(`BLEMCL startNotifications start ${candidateUuid}`);
+                await characteristic.startNotifications();
                 console.log(`BLEMCL startNotifications OK ${candidateUuid}`);
 
                 characteristic.addEventListener('characteristicvaluechanged', (e: any) => {
