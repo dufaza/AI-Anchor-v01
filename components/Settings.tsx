@@ -120,11 +120,9 @@ const Settings: React.FC<SettingsProps> = ({
         
         // Safety Timeout (20s)
         const safetyTimeout = setTimeout(() => {
-            if (isConnecting) {
-                setIsConnecting(false);
-                setConnectionStatusText('Retry Connection');
-                alert("Connection timed out. Sensor unresponsive.");
-            }
+            setIsConnecting(false);
+            setConnectionStatusText('Retry Connection');
+            alert("Connection timed out. Sensor unresponsive.");
         }, 20000);
 
         try {
