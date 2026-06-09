@@ -57,7 +57,8 @@ const enrichBluetoothError = (
     step: string,
     device: BluetoothDevice | null,
     serviceUuid: string | null = null,
-    characteristicUuid: string | null = null
+    characteristicUuid: string | null = null,
+    availableCharacteristics: string | null = null
 ) => {
     if (error?.bluetoothStep) return error;
 
@@ -67,6 +68,7 @@ const enrichBluetoothError = (
     const deviceId = device?.id || 'Unavailable';
     const attemptedServiceUuid = serviceUuid || 'Unavailable';
     const attemptedCharacteristicUuid = characteristicUuid || 'Unavailable';
+    const discoveredCharacteristics = availableCharacteristics || 'Unavailable';
     const enriched = new Error(
         [
             'STM32 Bluetooth connection failed',
@@ -76,7 +78,8 @@ const enrichBluetoothError = (
             `device.name: ${deviceName}`,
             `device.id: ${deviceId}`,
             `service.uuid: ${attemptedServiceUuid}`,
-            `characteristic.uuid: ${attemptedCharacteristicUuid}`
+            `characteristic.uuid: ${attemptedCharacteristicUuid}`,
+            `available.characteristics:\n${discoveredCharacteristics}`
         ].join('\n')
     );
 
@@ -88,6 +91,7 @@ const enrichBluetoothError = (
     (enriched as any).deviceId = deviceId;
     (enriched as any).serviceUuid = attemptedServiceUuid;
     (enriched as any).characteristicUuid = attemptedCharacteristicUuid;
+    (enriched as any).availableCharacteristics = discoveredCharacteristics;
     (enriched as any).cause = error;
 
     return enriched;
@@ -101,8 +105,21 @@ const logSTM32Characteristics = async (service: BluetoothRemoteGATTService, labe
         const characteristics = await (service as any).getCharacteristics();
         if (!characteristics || characteristics.length === 0) {
             console.warn(`STM32: No characteristics discovered for ${label} service=${service.uuid}`);
-            return;
+            return `SERVICE_LABEL=${label}\nSERVICE_UUID=${service.uuid}\nNo characteristics discovered`;
         }
+
+        const characteristicLines = characteristics.map((characteristic: BluetoothRemoteGATTCharacteristic) => (
+            [
+                `SERVICE_LABEL=${label}`,
+                `SERVICE_UUID=${service.uuid}`,
+                'Characteristic:',
+                `UUID=${characteristic.uuid}`,
+                `READ=${characteristic.properties.read}`,
+                `WRITE=${characteristic.properties.write}`,
+                `NOTIFY=${characteristic.properties.notify}`,
+                `INDICATE=${characteristic.properties.indicate}`
+            ].join('\n')
+        ));
 
         characteristics.forEach((characteristic: BluetoothRemoteGATTCharacteristic) => {
             console.log(
@@ -116,8 +133,10 @@ const logSTM32Characteristics = async (service: BluetoothRemoteGATTService, labe
                 ].join('\n')
             );
         });
+        return characteristicLines.join('\n\n');
     } catch (error) {
         console.warn(`STM32: Could not list characteristics for ${label} service=${service.uuid}`, error);
+        return `SERVICE_LABEL=${label}\nSERVICE_UUID=${service.uuid}\nCould not list characteristics: ${getBluetoothErrorName(error)} ${getBluetoothErrorMessage(error)}`;
     }
 };
 
@@ -396,6 +415,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
     let device: BluetoothDevice | null = null;
     let serviceUuid: string | null = null;
     let characteristicUuid: string | null = null;
+    let availableCharacteristics: string | null = null;
 
     try {
         console.log("STM32: Requesting Device...");
@@ -455,23 +475,24 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         try {
             service = await server.getPrimaryService(STM32_UUIDS.SERVICE);
             console.log(`STM32: Service found: ${STM32_UUIDS.SERVICE}`);
-            await logSTM32Characteristics(service, 'PRIMARY');
+            availableCharacteristics = await logSTM32Characteristics(service, 'PRIMARY');
             try {
                 const extensionService = await server.getPrimaryService(STM32_UUIDS.SERVICE_EXT);
                 console.log(`STM32: Extension service found: ${STM32_UUIDS.SERVICE_EXT}`);
-                await logSTM32Characteristics(extensionService, 'EXTENSION');
+                const extensionCharacteristics = await logSTM32Characteristics(extensionService, 'EXTENSION');
+                availableCharacteristics = [availableCharacteristics, extensionCharacteristics].filter(Boolean).join('\n\n');
             } catch (extensionServiceError) {
-                const enrichedExtension = enrichBluetoothError(extensionServiceError, step, device, STM32_UUIDS.SERVICE_EXT, characteristicUuid);
+                const enrichedExtension = enrichBluetoothError(extensionServiceError, step, device, STM32_UUIDS.SERVICE_EXT, characteristicUuid, availableCharacteristics);
                 console.warn(enrichedExtension.message, extensionServiceError);
             }
         } catch (primaryServiceError) {
-            const enrichedPrimary = enrichBluetoothError(primaryServiceError, step, device, serviceUuid, characteristicUuid);
+            const enrichedPrimary = enrichBluetoothError(primaryServiceError, step, device, serviceUuid, characteristicUuid, availableCharacteristics);
             console.warn(enrichedPrimary.message, primaryServiceError);
             console.log(`STM32: Primary service failed, trying extension service ${STM32_UUIDS.SERVICE_EXT}...`);
             serviceUuid = STM32_UUIDS.SERVICE_EXT;
             service = await server.getPrimaryService(STM32_UUIDS.SERVICE_EXT);
             console.log(`STM32: Service found: ${STM32_UUIDS.SERVICE_EXT}`);
-            await logSTM32Characteristics(service, 'EXTENSION');
+            availableCharacteristics = await logSTM32Characteristics(service, 'EXTENSION');
         }
 
         console.log("STM32: Getting Characteristics...");
@@ -484,7 +505,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
             fusionChar = await service.getCharacteristic(STM32_UUIDS.CHAR_FUSION);
             console.log(`STM32: Characteristic found: ${STM32_UUIDS.CHAR_FUSION}`);
         } catch (fusionError) {
-            const enrichedFusion = enrichBluetoothError(fusionError, step, device, serviceUuid, characteristicUuid);
+            const enrichedFusion = enrichBluetoothError(fusionError, step, device, serviceUuid, characteristicUuid, availableCharacteristics);
             console.warn(enrichedFusion.message, fusionError);
             console.log(`STM32: Fusion characteristic failed, trying accel characteristic ${STM32_UUIDS.CHAR_ACCEL}...`);
             characteristicUuid = STM32_UUIDS.CHAR_ACCEL;
@@ -492,7 +513,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
                 accelChar = await service.getCharacteristic(STM32_UUIDS.CHAR_ACCEL);
                 console.log(`STM32: Characteristic found: ${STM32_UUIDS.CHAR_ACCEL}`);
             } catch (accelError) {
-                const enrichedAccel = enrichBluetoothError(accelError, step, device, serviceUuid, characteristicUuid);
+                const enrichedAccel = enrichBluetoothError(accelError, step, device, serviceUuid, characteristicUuid, availableCharacteristics);
                 console.error("STM32: No expected STM32 characteristic found", enrichedAccel.message, accelError);
                 throw enrichedAccel;
             }
@@ -506,7 +527,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
                 await fusionChar.startNotifications();
                 console.log(`STM32: Notifications started on ${STM32_UUIDS.CHAR_FUSION}`);
             } catch (notificationError) {
-                throw enrichBluetoothError(notificationError, step, device, serviceUuid, characteristicUuid);
+                throw enrichBluetoothError(notificationError, step, device, serviceUuid, characteristicUuid, availableCharacteristics);
             }
             fusionChar.addEventListener('characteristicvaluechanged', (e: any) => {
                 onData(parseSTM32Fusion(e.target.value));
@@ -530,14 +551,14 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
                 await accelChar.startNotifications();
                 console.log(`STM32: Notifications started on ${STM32_UUIDS.CHAR_ACCEL}`);
             } catch (notificationError) {
-                throw enrichBluetoothError(notificationError, step, device, serviceUuid, characteristicUuid);
+                throw enrichBluetoothError(notificationError, step, device, serviceUuid, characteristicUuid, availableCharacteristics);
             }
             accelChar.addEventListener('characteristicvaluechanged', (e: any) => {
                 onData(parseSTM32Accel(e.target.value));
             });
             console.log("STM32: ACCEL Subscribed OK");
         } catch (e) {
-            const enrichedAccelOptional = enrichBluetoothError(e, step, device, serviceUuid, characteristicUuid);
+            const enrichedAccelOptional = enrichBluetoothError(e, step, device, serviceUuid, characteristicUuid, availableCharacteristics);
             if (!fusionChar) {
                 console.error("STM32: No expected STM32 characteristic found", enrichedAccelOptional.message, e);
                 throw enrichedAccelOptional;
@@ -548,7 +569,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
 
         return device;
     } catch (error) {
-        const enriched = enrichBluetoothError(error, step, device, serviceUuid, characteristicUuid);
+        const enriched = enrichBluetoothError(error, step, device, serviceUuid, characteristicUuid, availableCharacteristics);
         console.error(enriched.message, error);
         throw enriched;
     }

@@ -187,7 +187,8 @@ const Settings: React.FC<SettingsProps> = ({
                 `device.name: ${e?.deviceName || 'Unavailable'}`,
                 `device.id: ${e?.deviceId || 'Unavailable'}`,
                 `service.uuid: ${e?.serviceUuid || 'Unavailable'}`,
-                `characteristic.uuid: ${e?.characteristicUuid || 'Unavailable'}`
+                `characteristic.uuid: ${e?.characteristicUuid || 'Unavailable'}`,
+                `available.characteristics:\n${e?.availableCharacteristics || 'Unavailable'}`
             ].join('\n');
 
             alert(`Connection Failed\n\n${diagnosticDetails}`);
