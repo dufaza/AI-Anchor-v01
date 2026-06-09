@@ -17,6 +17,7 @@ const TI_UUIDS = {
 // ===========================================================================
 const STM32_UUIDS = {
     SERVICE: '00000000-0001-11e1-9ab4-0002a5d5c51b',
+    SERVICE_EXT: '00000000-000e-11e1-9ab4-0002a5d5c51b',
     
     // Feature: Sensor Fusion (Compact Quaternions) - Pour Pitch/Roll/Yaw Stable
     // Bitmask: 0x100
@@ -35,6 +36,62 @@ const STM32_UUIDS = {
 // ===========================================================================
 let activeInterval: any = null;
 let activeGattServer: BluetoothRemoteGATTServer | null = null;
+
+const getBluetoothErrorName = (error: any) => {
+    return error?.name || (typeof error === 'number' ? 'NumericBluetoothError' : 'BluetoothError');
+};
+
+const getBluetoothErrorMessage = (error: any) => {
+    if (error?.message) return error.message;
+    if (typeof error === 'string') return error;
+    if (typeof error === 'number') return String(error);
+    try {
+        return JSON.stringify(error) || String(error);
+    } catch {
+        return String(error);
+    }
+};
+
+const enrichBluetoothError = (
+    error: any,
+    step: string,
+    device: BluetoothDevice | null,
+    serviceUuid: string | null = null,
+    characteristicUuid: string | null = null
+) => {
+    if (error?.bluetoothStep) return error;
+
+    const errorName = getBluetoothErrorName(error);
+    const errorMessage = getBluetoothErrorMessage(error);
+    const deviceName = device?.name || 'Unavailable';
+    const deviceId = device?.id || 'Unavailable';
+    const attemptedServiceUuid = serviceUuid || 'Unavailable';
+    const attemptedCharacteristicUuid = characteristicUuid || 'Unavailable';
+    const enriched = new Error(
+        [
+            'STM32 Bluetooth connection failed',
+            `step: ${step}`,
+            `error.name: ${errorName}`,
+            `error.message: ${errorMessage}`,
+            `device.name: ${deviceName}`,
+            `device.id: ${deviceId}`,
+            `service.uuid: ${attemptedServiceUuid}`,
+            `characteristic.uuid: ${attemptedCharacteristicUuid}`
+        ].join('\n')
+    );
+
+    enriched.name = errorName;
+    (enriched as any).bluetoothStep = step;
+    (enriched as any).originalErrorName = errorName;
+    (enriched as any).originalErrorMessage = errorMessage;
+    (enriched as any).deviceName = deviceName;
+    (enriched as any).deviceId = deviceId;
+    (enriched as any).serviceUuid = attemptedServiceUuid;
+    (enriched as any).characteristicUuid = attemptedCharacteristicUuid;
+    (enriched as any).cause = error;
+
+    return enriched;
+};
 
 // ===========================================================================
 // DRIVER: SIMULATOR
@@ -307,82 +364,156 @@ const parseSTM32Accel = (data: DataView): Partial<SensorData> => {
 const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisconnect: () => void) => {
     if (!navigator.bluetooth) throw new Error("Bluetooth not supported");
 
-    console.log("STM32: Requesting Device...");
-    // FIX: Reverting to Name-Based Filters ONLY.
-    // Filtering by Service UUID (STM32_UUIDS.SERVICE) often hides the device on iOS 
-    // because the SensorTile doesn't always advertise the UUID in the public packet.
-    const device = await navigator.bluetooth.requestDevice({
-        filters: [
-            { namePrefix: 'BC' },   // Box Connect (often BCST...)
-            { namePrefix: 'ST' },   // STMicroelectronics
-            { namePrefix: 'Sen' },  // SensorTile
-            { namePrefix: 'Blue' }, // BlueMS
-            { namePrefix: 'BLE' },
-            { namePrefix: 'BLEMLC' },
-            { namePrefix: 'STM32' },
-            { namePrefix: 'Sensor' },
-            { namePrefix: 'SensorBox' },
-            { namePrefix: 'SensorTile' },
-            { namePrefix: 'STBOX' },
-            { namePrefix: 'HSD' },
-            { namePrefix: 'HSD2v31' }    // DT_ 
-        ],
-        // CRITICAL: We MUST list the service here to access it later, 
-        // even if we don't filter by it during discovery.
-        optionalServices: [STM32_UUIDS.SERVICE]
-    });
+    let step = 'requestDevice';
+    let device: BluetoothDevice | null = null;
+    let serviceUuid: string | null = null;
+    let characteristicUuid: string | null = null;
 
-    if (!device.gatt) throw new Error("No GATT Server");
-    
-    device.addEventListener('gattserverdisconnected', onDisconnect);
-    console.log("STM32: Connecting GATT...");
-    
-    // Robust Connection Loop (Retry logic)
-    let server: BluetoothRemoteGATTServer | null = null;
-    let retries = 3;
-    while (retries > 0 && !server) {
-        try {
-            server = await device.gatt.connect();
-        } catch (error) {
-            console.warn(`STM32: GATT connect failed, retries left: ${retries-1}`, error);
-            retries--;
-            if (retries === 0) throw error;
-            await new Promise(r => setTimeout(r, 1000));
-        }
-    }
-    if (!server) throw new Error("GATT connection failed");
-    activeGattServer = server;
-
-    console.log("STM32: Getting Service...");
-    const service = await server.getPrimaryService(STM32_UUIDS.SERVICE);
-
-    console.log("STM32: Getting Characteristics...");
-    // 1. Subscribe to FUSION (Quaternions)
-    const fusionChar = await service.getCharacteristic(STM32_UUIDS.CHAR_FUSION);
-    
-    console.log("STM32: Subscribing to FUSION...");
-    await fusionChar.startNotifications();
-    fusionChar.addEventListener('characteristicvaluechanged', (e: any) => {
-        onData(parseSTM32Fusion(e.target.value));
-    });
-
-    // 2. Subscribe to ACCEL (Raw Data) - with delay for iOS stability
-    await new Promise(r => setTimeout(r, 500)); // 500ms delay
-    
     try {
-        const accelChar = await service.getCharacteristic(STM32_UUIDS.CHAR_ACCEL);
-        console.log("STM32: Subscribing to ACCEL...");
-        await accelChar.startNotifications();
-        accelChar.addEventListener('characteristicvaluechanged', (e: any) => {
-            onData(parseSTM32Accel(e.target.value));
+        console.log("STM32: Requesting Device...");
+        // FIX: Reverting to Name-Based Filters ONLY.
+        // Filtering by Service UUID (STM32_UUIDS.SERVICE) often hides the device on iOS 
+        // because the SensorTile doesn't always advertise the UUID in the public packet.
+        device = await navigator.bluetooth.requestDevice({
+            filters: [
+                { namePrefix: 'BC' },   // Box Connect (often BCST...)
+                { namePrefix: 'ST' },   // STMicroelectronics
+                { namePrefix: 'Sen' },  // SensorTile
+                { namePrefix: 'Blue' }, // BlueMS
+                { namePrefix: 'BLE' },
+                { namePrefix: 'BLEMCL' },
+                { namePrefix: 'BLEMLC' },
+                { namePrefix: 'STM32' },
+                { namePrefix: 'Sensor' },
+                { namePrefix: 'SensorBox' },
+                { namePrefix: 'SensorTile' },
+                { namePrefix: 'STBOX' },
+                { namePrefix: 'HSD' },
+                { namePrefix: 'HSD2v31' }    // DT_ 
+            ],
+            // CRITICAL: We MUST list the service here to access it later, 
+            // even if we don't filter by it during discovery.
+            optionalServices: [STM32_UUIDS.SERVICE, STM32_UUIDS.SERVICE_EXT]
         });
-        console.log("STM32: ACCEL Subscribed OK");
-    } catch (e) {
-        console.warn("STM32: Could not subscribe to Raw Accel (Firmware config issue?)", e);
-        // Do not crash, just continue without raw data
-    }
+        console.log(`STM32: Device selected: device.name=${device.name || 'Unavailable'}, device.id=${device.id || 'Unavailable'}`);
 
-    return device;
+        if (!device.gatt) throw new Error("No GATT Server");
+        
+        device.addEventListener('gattserverdisconnected', onDisconnect);
+        console.log("STM32: Connecting GATT...");
+        
+        // Robust Connection Loop (Retry logic)
+        step = 'gatt.connect';
+        let server: BluetoothRemoteGATTServer | null = null;
+        let retries = 3;
+        while (retries > 0 && !server) {
+            try {
+                server = await device.gatt.connect();
+            } catch (error) {
+                console.warn(`STM32: GATT connect failed, retries left: ${retries-1}`, error);
+                retries--;
+                if (retries === 0) throw error;
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+        if (!server) throw new Error("GATT connection failed");
+        activeGattServer = server;
+        console.log("STM32: GATT connected OK");
+
+        console.log(`STM32: Getting primary service ${STM32_UUIDS.SERVICE}...`);
+        step = 'getPrimaryService';
+        serviceUuid = STM32_UUIDS.SERVICE;
+        let service: BluetoothRemoteGATTService | null = null;
+        try {
+            service = await server.getPrimaryService(STM32_UUIDS.SERVICE);
+            console.log(`STM32: Service found: ${STM32_UUIDS.SERVICE}`);
+        } catch (primaryServiceError) {
+            const enrichedPrimary = enrichBluetoothError(primaryServiceError, step, device, serviceUuid, characteristicUuid);
+            console.warn(enrichedPrimary.message, primaryServiceError);
+            console.log(`STM32: Primary service failed, trying extension service ${STM32_UUIDS.SERVICE_EXT}...`);
+            serviceUuid = STM32_UUIDS.SERVICE_EXT;
+            service = await server.getPrimaryService(STM32_UUIDS.SERVICE_EXT);
+            console.log(`STM32: Service found: ${STM32_UUIDS.SERVICE_EXT}`);
+        }
+
+        console.log("STM32: Getting Characteristics...");
+        // 1. Subscribe to FUSION (Quaternions)
+        step = 'getCharacteristic';
+        characteristicUuid = STM32_UUIDS.CHAR_FUSION;
+        let fusionChar: BluetoothRemoteGATTCharacteristic | null = null;
+        let accelChar: BluetoothRemoteGATTCharacteristic | null = null;
+        try {
+            fusionChar = await service.getCharacteristic(STM32_UUIDS.CHAR_FUSION);
+            console.log(`STM32: Characteristic found: ${STM32_UUIDS.CHAR_FUSION}`);
+        } catch (fusionError) {
+            const enrichedFusion = enrichBluetoothError(fusionError, step, device, serviceUuid, characteristicUuid);
+            console.warn(enrichedFusion.message, fusionError);
+            console.log(`STM32: Fusion characteristic failed, trying accel characteristic ${STM32_UUIDS.CHAR_ACCEL}...`);
+            characteristicUuid = STM32_UUIDS.CHAR_ACCEL;
+            try {
+                accelChar = await service.getCharacteristic(STM32_UUIDS.CHAR_ACCEL);
+                console.log(`STM32: Characteristic found: ${STM32_UUIDS.CHAR_ACCEL}`);
+            } catch (accelError) {
+                const enrichedAccel = enrichBluetoothError(accelError, step, device, serviceUuid, characteristicUuid);
+                console.error("STM32: No expected STM32 characteristic found", enrichedAccel.message, accelError);
+                throw enrichedAccel;
+            }
+        }
+
+        if (fusionChar) {
+            console.log("STM32: Subscribing to FUSION...");
+            step = 'startNotifications';
+            characteristicUuid = STM32_UUIDS.CHAR_FUSION;
+            try {
+                await fusionChar.startNotifications();
+                console.log(`STM32: Notifications started on ${STM32_UUIDS.CHAR_FUSION}`);
+            } catch (notificationError) {
+                throw enrichBluetoothError(notificationError, step, device, serviceUuid, characteristicUuid);
+            }
+            fusionChar.addEventListener('characteristicvaluechanged', (e: any) => {
+                onData(parseSTM32Fusion(e.target.value));
+            });
+        }
+
+        // 2. Subscribe to ACCEL (Raw Data) - with delay for iOS stability
+        await new Promise(r => setTimeout(r, 500)); // 500ms delay
+        
+        try {
+            if (!accelChar) {
+                step = 'getCharacteristic';
+                characteristicUuid = STM32_UUIDS.CHAR_ACCEL;
+                accelChar = await service.getCharacteristic(STM32_UUIDS.CHAR_ACCEL);
+                console.log(`STM32: Characteristic found: ${STM32_UUIDS.CHAR_ACCEL}`);
+            }
+            console.log("STM32: Subscribing to ACCEL...");
+            step = 'startNotifications';
+            characteristicUuid = STM32_UUIDS.CHAR_ACCEL;
+            try {
+                await accelChar.startNotifications();
+                console.log(`STM32: Notifications started on ${STM32_UUIDS.CHAR_ACCEL}`);
+            } catch (notificationError) {
+                throw enrichBluetoothError(notificationError, step, device, serviceUuid, characteristicUuid);
+            }
+            accelChar.addEventListener('characteristicvaluechanged', (e: any) => {
+                onData(parseSTM32Accel(e.target.value));
+            });
+            console.log("STM32: ACCEL Subscribed OK");
+        } catch (e) {
+            const enrichedAccelOptional = enrichBluetoothError(e, step, device, serviceUuid, characteristicUuid);
+            if (!fusionChar) {
+                console.error("STM32: No expected STM32 characteristic found", enrichedAccelOptional.message, e);
+                throw enrichedAccelOptional;
+            }
+            console.warn("STM32: Could not subscribe to Raw Accel (Firmware config issue?)", enrichedAccelOptional.message, e);
+            // Do not crash, just continue without raw data
+        }
+
+        return device;
+    } catch (error) {
+        const enriched = enrichBluetoothError(error, step, device, serviceUuid, characteristicUuid);
+        console.error(enriched.message, error);
+        throw enriched;
+    }
 };
 
 

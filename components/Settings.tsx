@@ -180,7 +180,17 @@ const Settings: React.FC<SettingsProps> = ({
             }
             
             console.warn("Connection attempt failed:", e);
-            alert(`Connection Failed: ${errorMsg}`);
+            const diagnosticDetails = [
+                `error.name: ${e?.originalErrorName || e?.name || 'Unknown'}`,
+                `error.message: ${e?.originalErrorMessage || errorMsg}`,
+                `step: ${e?.bluetoothStep || 'Unknown'}`,
+                `device.name: ${e?.deviceName || 'Unavailable'}`,
+                `device.id: ${e?.deviceId || 'Unavailable'}`,
+                `service.uuid: ${e?.serviceUuid || 'Unavailable'}`,
+                `characteristic.uuid: ${e?.characteristicUuid || 'Unavailable'}`
+            ].join('\n');
+
+            alert(`Connection Failed\n\n${diagnosticDetails}`);
         }
     };
 
