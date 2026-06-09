@@ -53,6 +53,12 @@ export interface SensorData {
   accX?: number;
   accY?: number;
   accZ?: number;
+  gyroX?: number;
+  gyroY?: number;
+  gyroZ?: number;
+  magX?: number;
+  magY?: number;
+  magZ?: number;
   // Flag to confirm raw data stream is active (for AI logging validation)
   hasRawAccel?: boolean;
 }

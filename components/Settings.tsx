@@ -310,11 +310,11 @@ const Settings: React.FC<SettingsProps> = ({
                 <div className="bg-ocean-800 p-4 rounded-xl border border-ocean-700 space-y-3 flex-shrink-0">
                     <label className="text-xs font-bold text-ocean-400 uppercase tracking-wider">Device Driver</label>
                     <div className="grid grid-cols-1 gap-2">
-                        {['SIMULATOR', 'TI_SENSORTAG', 'STM32_TILEBOX'].map((type) => (
+                        {['SIMULATOR', 'STM32_TILEBOX'].map((type) => (
                             <button key={type} onClick={() => handleSensorTypeChange(type as SensorType)} className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${config.sensorType === type ? 'bg-ocean-600 border-ocean-400 text-white' : 'bg-ocean-900 border-ocean-700 text-gray-400'}`}>
                                 <Box className="w-5 h-5" />
                                 <div>
-                                    <div className="font-bold text-sm">{type === 'STM32_TILEBOX' ? 'STM32 SensorTile' : type === 'TI_SENSORTAG' ? 'TI SensorTag' : 'Simulator'}</div>
+                                    <div className="font-bold text-sm">{type === 'STM32_TILEBOX' ? 'STM32 SensorTile / SensorBoxPro' : 'Simulator'}</div>
                                 </div>
                                 {config.sensorType === type && <Check className="w-4 h-4 ml-auto" />}
                             </button>
