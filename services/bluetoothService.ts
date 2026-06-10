@@ -475,6 +475,32 @@ const getCharacteristicWithRetry = async (
     throw lastError;
 };
 
+const getPrimaryServiceWithRetry = async (
+    server: BluetoothRemoteGATTServer,
+    uuid: string,
+    maxAttempts = 5,
+    delayMs = 1500
+) => {
+    let lastError: any = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            console.log(`STM32 getPrimaryService attempt ${attempt}/${maxAttempts}: ${uuid}`);
+            const service = await server.getPrimaryService(uuid);
+            console.log(`STM32 getPrimaryService OK: ${uuid}`);
+            return service;
+        } catch (error) {
+            lastError = error;
+            console.warn(`STM32 getPrimaryService FAILED ${attempt}/${maxAttempts}: ${getBluetoothErrorName(error)} ${getBluetoothErrorMessage(error)}`);
+            if (attempt < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        }
+    }
+
+    throw lastError;
+};
+
 const logSTM32StepFailed = (stepNumber: number, error: any) => {
     console.error(`STM32 STEP ${stepNumber} FAILED:`);
     console.error(getBluetoothErrorName(error));
@@ -590,14 +616,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         activeGattServer = server;
         console.log("STM32: GATT connected OK");
 
-        console.log("STM32 STEP 1 START");
-        try {
-            await (server as any).getPrimaryServices();
-            console.log("STM32 STEP 1 OK");
-        } catch (error) {
-            logSTM32StepFailed(1, error);
-            throw error;
-        }
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
         console.log(`STM32: Getting primary service ${STM32_FEATURES_SERVICE_UUID}...`);
         step = 'getPrimaryService';
@@ -605,7 +624,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         console.log("STM32 STEP 2 START");
         let service: BluetoothRemoteGATTService;
         try {
-            service = await server.getPrimaryService(STM32_FEATURES_SERVICE_UUID);
+            service = await getPrimaryServiceWithRetry(server, STM32_FEATURES_SERVICE_UUID);
             console.log("STM32 STEP 2 OK");
         } catch (error) {
             logSTM32StepFailed(2, error);
