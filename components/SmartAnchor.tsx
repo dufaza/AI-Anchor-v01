@@ -552,7 +552,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     const bleEstimatedHz = blePacketDiag.estimatedHz !== null && blePacketDiag.estimatedHz !== undefined
         ? Number(blePacketDiag.estimatedHz)
         : null;
-    const bleHzText = bleEstimatedHz !== null && Number.isFinite(bleEstimatedHz) ? bleEstimatedHz.toFixed(1) : '—';
+    const bleHzText = bleEstimatedHz !== null && Number.isFinite(bleEstimatedHz) ? String(Math.round(bleEstimatedHz)) : '—';
     const blePacketAgeMs = blePacketDiag.lastPacketTime ? Math.max(0, currentTimerTick - blePacketDiag.lastPacketTime) : null;
     const bleAgeText = blePacketAgeMs !== null ? String(blePacketAgeMs) : '—';
     const hasRecentBlePacket = blePacketAgeMs !== null && blePacketAgeMs <= 2000;
@@ -1033,13 +1033,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     // Calculate Total Elapsed Time since Ready to Go
     // CHANGED: Use Math.floor to show integer seconds instead of fixed(1) which showed milliseconds/decimal.
     const totalElapsedSec = sequenceStartTime ? Math.floor((currentTimerTick - sequenceStartTime) / 1000).toString() : "0";
-    const lastPacketHex = blePacketDiag.lastPacketHex || '—';
-    const characteristicsText = blePacketDiag.characteristicsText || '—';
-    const rawSourceUuid = blePacketDiag.rawSourceUuid || '—';
     const rawHexExact = blePacketDiag.rawHexExact || '—';
-    const rawBytes_0_7 = blePacketDiag.rawBytes_0_7 || '—';
-    const rawBytes_8_13 = blePacketDiag.rawBytes_8_13 || '—';
-    const rawBytes_14_19 = blePacketDiag.rawBytes_14_19 || '—';
 
     return (
         <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto pb-24 animate-in fade-in duration-300">
@@ -1073,31 +1067,12 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                     </div>
                     {showBleDebugDetails && (
                         <>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-ocean-700 pt-1">
-                                <span className="text-ocean-400 font-bold">ACC</span>
-                                <span>X: <span className="font-bold">{formatRawNumber(sensorData.accX)}</span></span>
-                                <span>Y: <span className="font-bold">{formatRawNumber(sensorData.accY)}</span></span>
-                                <span>Z: <span className="font-bold">{formatRawNumber(sensorData.accZ)}</span></span>
-                            </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1">
-                                <span className="text-ocean-400 font-bold">GYRO</span>
-                                <span>X: <span className="font-bold">{formatRawNumber(sensorData.gyroX)}</span></span>
-                                <span>Y: <span className="font-bold">{formatRawNumber(sensorData.gyroY)}</span></span>
-                                <span>Z: <span className="font-bold">{formatRawNumber(sensorData.gyroZ)}</span></span>
-                            </div>
-                            <div className="break-words whitespace-normal leading-snug max-h-16 overflow-y-auto">
-                                <span className="text-ocean-400 font-bold">HEX:</span> <span className="font-bold">{lastPacketHex}</span>
-                            </div>
                             <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
-                                <div><span className="text-ocean-400 font-bold">UUID:</span> <span className="font-bold">{rawSourceUuid}</span></div>
+                                <div><span className="text-ocean-400 font-bold">PKT:</span> <span className="font-bold">{packetCountText}</span></div>
+                                <div><span className="text-ocean-400 font-bold">Hz:</span> <span className="font-bold">{bleHzText}</span></div>
                                 <div><span className="text-ocean-400 font-bold">LEN:</span> <span className="font-bold">{rawByteLength}</span></div>
+                                <div><span className="text-ocean-400 font-bold">LAST:</span> <span className="font-bold">{bleAgeText}</span>ms</div>
                                 <div><span className="text-ocean-400 font-bold">RAW HEX EXACT:</span> <span className="font-bold">{rawHexExact}</span></div>
-                                <div><span className="text-ocean-400 font-bold">B[0..7]:</span> <span className="font-bold">{rawBytes_0_7}</span></div>
-                                <div><span className="text-ocean-400 font-bold">B[8..13]:</span> <span className="font-bold">{rawBytes_8_13}</span></div>
-                                <div><span className="text-ocean-400 font-bold">B[14..19]:</span> <span className="font-bold">{rawBytes_14_19}</span></div>
-                            </div>
-                            <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
-                                <span className="text-ocean-400 font-bold">CHARS:</span> <span className="font-bold">{characteristicsText}</span>
                             </div>
                         </>
                     )}
