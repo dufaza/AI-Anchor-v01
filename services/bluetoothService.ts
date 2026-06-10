@@ -710,18 +710,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         console.log("STM32 setup complete");
         console.log(`STM32 service UUID: ${serviceUuid}`);
         console.log(`STM32 subscribed UUIDs: ${subscribedUuids.join(', ')}`);
-
-        void (async () => {
-            for (const optionalUuid of STM32_OPTIONAL_NOTIFICATION_CHARS) {
-                try {
-                    await subscribeSTM32Characteristic(service, optionalUuid, connectedDevice, subscribedUuids);
-                    console.log(`STM32 optional subscribed UUIDs: ${subscribedUuids.join(', ')}`);
-                } catch (optionalError) {
-                    const enrichedOptional = enrichBluetoothError(optionalError, 'optionalCharacteristic', connectedDevice, serviceUuid, optionalUuid, availableCharacteristics);
-                    console.warn(`STM32: Optional characteristic skipped ${optionalUuid}`, enrichedOptional.message, optionalError);
-                }
-            }
-        })();
+        console.log(`STM32 optional subscriptions temporarily disabled: ${STM32_OPTIONAL_NOTIFICATION_CHARS.join(', ')}`);
 
         return device;
     } catch (error) {
