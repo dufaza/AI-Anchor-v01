@@ -76,11 +76,13 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
 
     // Toggle for Optional Recording
     const [isRecordEnabled, setIsRecordEnabled] = useState(true);
+    const [showBleDebugDetails, setShowBleDebugDetails] = useState(false);
     const [blePacketDiag, setBlePacketDiag] = useState<{
         packetCount: number;
         lastPacketTime?: number;
         lastPacketLength?: number;
         lastPacketHex?: string;
+        estimatedHz?: string | null;
         characteristicsText?: string;
         rawSourceUuid?: string;
         rawByteLength?: number;
@@ -137,6 +139,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                 lastPacketTime: Date.now(),
                 lastPacketLength: detail.byteLength,
                 lastPacketHex: detail.hex,
+                estimatedHz: detail.estimatedHz,
                 rawSourceUuid: detail.rawSourceUuid,
                 rawByteLength: detail.rawByteLength,
                 rawHexExact: detail.rawHexExact,
@@ -185,13 +188,13 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     // --- GLOBAL TIMER TICKER ---
     useEffect(() => {
         let interval: any;
-        if (dropPhase !== 'IDLE') {
+        if (dropPhase !== 'IDLE' || sensorData.isConnected) {
             interval = setInterval(() => {
                 setCurrentTimerTick(Date.now());
-            }, 100);
+            }, 250);
         }
         return () => { if (interval) clearInterval(interval); };
-    }, [dropPhase]);
+    }, [dropPhase, sensorData.isConnected]);
 
     // --- CENTRALIZED RISK ENGINE (SINGLE SOURCE OF TRUTH) ---
     // Calculates all factors and dynamic limits ONCE, to be used by both UI and Alarm Logic.
@@ -543,6 +546,35 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         );
     };
 
+    const formatRawNumber = (value?: number) => typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '—';
+    const packetCountText = blePacketDiag.packetCount > 0 ? String(blePacketDiag.packetCount) : '—';
+    const rawByteLength = typeof blePacketDiag.rawByteLength === 'number' ? String(blePacketDiag.rawByteLength) : '—';
+    const bleEstimatedHz = blePacketDiag.estimatedHz !== null && blePacketDiag.estimatedHz !== undefined
+        ? Number(blePacketDiag.estimatedHz)
+        : null;
+    const bleHzText = bleEstimatedHz !== null && Number.isFinite(bleEstimatedHz) ? bleEstimatedHz.toFixed(1) : '—';
+    const blePacketAgeMs = blePacketDiag.lastPacketTime ? Math.max(0, currentTimerTick - blePacketDiag.lastPacketTime) : null;
+    const bleAgeText = blePacketAgeMs !== null ? String(blePacketAgeMs) : '—';
+    const hasRecentBlePacket = blePacketAgeMs !== null && blePacketAgeMs <= 2000;
+    const isSlowBlePacket = hasRecentBlePacket && (bleEstimatedHz === null || !Number.isFinite(bleEstimatedHz) || bleEstimatedHz < 5);
+    const bleBadgeText = !sensorData.isConnected
+        ? 'BLE OFF'
+        : hasRecentBlePacket
+            ? `BLE ${isSlowBlePacket ? '~' : '✓'} ${bleHzText} Hz`
+            : 'BLE !';
+    const bleBadgeClass = !sensorData.isConnected
+        ? 'bg-ocean-800 text-gray-400'
+        : hasRecentBlePacket
+            ? isSlowBlePacket
+                ? 'bg-yellow-900/60 text-yellow-300 border border-yellow-500/40'
+                : 'bg-safe-900 text-safe-500 border border-safe-500/40'
+            : 'bg-alert-900/60 text-alert-300 border border-alert-500/40';
+    const bleHealthBadge = (
+        <span className={`flex items-center gap-1 text-xs font-mono px-2 py-1 rounded ${bleBadgeClass}`}>
+            {bleBadgeText} <Wifi className="w-3 h-3" />
+        </span>
+    );
+
 
     // --- CALIBRATION VIEW ---
     if (viewMode === 'calibration') {
@@ -561,7 +593,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
             <div className="flex flex-col h-full p-4 space-y-3 pb-24 animate-in fade-in">
                 <div className="flex items-center justify-between px-2 flex-shrink-0">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Ruler className="w-6 h-6 text-ocean-500" /> Calibration</h2>
-                    <span className="text-xs text-ocean-400">Step 2/4</span>
+                    {bleHealthBadge}
                 </div>
 
                 <button 
@@ -606,6 +638,21 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                 <div className="text-center p-2 bg-ocean-900 rounded border border-ocean-700/30">
                                     <span className="text-[9px] text-ocean-400 block font-bold uppercase">Yaw</span>
                                     <span className="font-mono font-bold text-white text-base">{smoothYaw.toFixed(0)}°</span>
+                                </div>
+                            </div>
+
+                            <div className="w-full mt-1 p-2 bg-black/40 rounded-lg border border-ocean-600 text-[10px] font-mono text-white space-y-1">
+                                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                    <span className="text-ocean-400 font-bold">ACC</span>
+                                    <span>X: <span className="font-bold">{formatRawNumber(sensorData.accX)}</span></span>
+                                    <span>Y: <span className="font-bold">{formatRawNumber(sensorData.accY)}</span></span>
+                                    <span>Z: <span className="font-bold">{formatRawNumber(sensorData.accZ)}</span></span>
+                                </div>
+                                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                    <span className="text-ocean-400 font-bold">GYRO</span>
+                                    <span>X: <span className="font-bold">{formatRawNumber(sensorData.gyroX)}</span></span>
+                                    <span>Y: <span className="font-bold">{formatRawNumber(sensorData.gyroY)}</span></span>
+                                    <span>Z: <span className="font-bold">{formatRawNumber(sensorData.gyroZ)}</span></span>
                                 </div>
                             </div>
                             
@@ -986,16 +1033,9 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     // Calculate Total Elapsed Time since Ready to Go
     // CHANGED: Use Math.floor to show integer seconds instead of fixed(1) which showed milliseconds/decimal.
     const totalElapsedSec = sequenceStartTime ? Math.floor((currentTimerTick - sequenceStartTime) / 1000).toString() : "0";
-    const formatRawNumber = (value?: number) => typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '—';
-    const formatRawTime = (value?: number) => typeof value === 'number' && Number.isFinite(value)
-        ? new Date(value).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        : '—';
-    const packetCountText = blePacketDiag.packetCount > 0 ? String(blePacketDiag.packetCount) : '—';
-    const lastPacketTimeText = formatRawTime(blePacketDiag.lastPacketTime);
     const lastPacketHex = blePacketDiag.lastPacketHex || '—';
     const characteristicsText = blePacketDiag.characteristicsText || '—';
     const rawSourceUuid = blePacketDiag.rawSourceUuid || '—';
-    const rawByteLength = typeof blePacketDiag.rawByteLength === 'number' ? String(blePacketDiag.rawByteLength) : '—';
     const rawHexExact = blePacketDiag.rawHexExact || '—';
     const rawBytes_0_7 = blePacketDiag.rawBytes_0_7 || '—';
     const rawBytes_8_13 = blePacketDiag.rawBytes_8_13 || '—';
@@ -1005,44 +1045,62 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto pb-24 animate-in fade-in duration-300">
              <div className="flex items-center justify-between px-2 flex-shrink-0">
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Bluetooth className="w-6 h-6 text-ocean-500" /> Positioning</h2>
-                <div className="flex gap-2"><span className={`flex items-center gap-1 text-xs font-mono px-2 py-1 rounded ${sensorData.isConnected ? 'bg-safe-900 text-safe-500' : 'bg-ocean-800 text-gray-400'}`}>{sensorData.isConnected ? (config.bluetoothDeviceName || 'LINKED') : 'OFFLINE'} <Wifi className="w-3 h-3" /></span></div>
+                <div className="flex gap-2">{bleHealthBadge}</div>
             </div>
 
             <div className="bg-black/40 border border-ocean-600 rounded-lg p-2 flex-shrink-0">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-ocean-300 mb-1">
-                    RAW ACC/GYRO
+                <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-ocean-300">
+                        RAW ACC/GYRO
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setShowBleDebugDetails(prev => !prev)}
+                        className="text-[10px] font-bold uppercase tracking-wider text-ocean-200 border border-ocean-600 rounded px-2 py-0.5 bg-ocean-900/60"
+                    >
+                        Debug
+                    </button>
                 </div>
                 <div className="space-y-1 text-[10px] font-mono text-white">
-                    <div className="flex flex-wrap gap-x-3 gap-y-1">
-                        <span className="text-ocean-400 font-bold">ACC</span>
-                        <span>X: <span className="font-bold">{formatRawNumber(sensorData.accX)}</span></span>
-                        <span>Y: <span className="font-bold">{formatRawNumber(sensorData.accY)}</span></span>
-                        <span>Z: <span className="font-bold">{formatRawNumber(sensorData.accZ)}</span></span>
+                    <div className="break-words leading-snug">
+                        <span>PKT: <span className="font-bold">{packetCountText}</span></span>
+                        <span className="mx-1 text-ocean-500">|</span>
+                        <span>Hz: <span className="font-bold">{bleHzText}</span></span>
+                        <span className="mx-1 text-ocean-500">|</span>
+                        <span>LEN: <span className="font-bold">{rawByteLength}</span></span>
+                        <span className="mx-1 text-ocean-500">|</span>
+                        <span>LAST: <span className="font-bold">{bleAgeText}</span>ms</span>
                     </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1">
-                        <span className="text-ocean-400 font-bold">GYRO</span>
-                        <span>X: <span className="font-bold">{formatRawNumber(sensorData.gyroX)}</span></span>
-                        <span>Y: <span className="font-bold">{formatRawNumber(sensorData.gyroY)}</span></span>
-                        <span>Z: <span className="font-bold">{formatRawNumber(sensorData.gyroZ)}</span></span>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                        <span>Packets: <span className="font-bold">{packetCountText}</span></span>
-                        <span>Last: <span className="font-bold">{lastPacketTimeText}</span></span>
-                    </div>
-                    <div className="break-words whitespace-normal leading-snug max-h-16 overflow-y-auto">
-                        <span className="text-ocean-400 font-bold">HEX:</span> <span className="font-bold">{lastPacketHex}</span>
-                    </div>
-                    <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
-                        <div><span className="text-ocean-400 font-bold">UUID:</span> <span className="font-bold">{rawSourceUuid}</span></div>
-                        <div><span className="text-ocean-400 font-bold">LEN:</span> <span className="font-bold">{rawByteLength}</span></div>
-                        <div><span className="text-ocean-400 font-bold">RAW HEX EXACT:</span> <span className="font-bold">{rawHexExact}</span></div>
-                        <div><span className="text-ocean-400 font-bold">B[0..7]:</span> <span className="font-bold">{rawBytes_0_7}</span></div>
-                        <div><span className="text-ocean-400 font-bold">B[8..13]:</span> <span className="font-bold">{rawBytes_8_13}</span></div>
-                        <div><span className="text-ocean-400 font-bold">B[14..19]:</span> <span className="font-bold">{rawBytes_14_19}</span></div>
-                    </div>
-                    <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
-                        <span className="text-ocean-400 font-bold">CHARS:</span> <span className="font-bold">{characteristicsText}</span>
-                    </div>
+                    {showBleDebugDetails && (
+                        <>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-ocean-700 pt-1">
+                                <span className="text-ocean-400 font-bold">ACC</span>
+                                <span>X: <span className="font-bold">{formatRawNumber(sensorData.accX)}</span></span>
+                                <span>Y: <span className="font-bold">{formatRawNumber(sensorData.accY)}</span></span>
+                                <span>Z: <span className="font-bold">{formatRawNumber(sensorData.accZ)}</span></span>
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                <span className="text-ocean-400 font-bold">GYRO</span>
+                                <span>X: <span className="font-bold">{formatRawNumber(sensorData.gyroX)}</span></span>
+                                <span>Y: <span className="font-bold">{formatRawNumber(sensorData.gyroY)}</span></span>
+                                <span>Z: <span className="font-bold">{formatRawNumber(sensorData.gyroZ)}</span></span>
+                            </div>
+                            <div className="break-words whitespace-normal leading-snug max-h-16 overflow-y-auto">
+                                <span className="text-ocean-400 font-bold">HEX:</span> <span className="font-bold">{lastPacketHex}</span>
+                            </div>
+                            <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
+                                <div><span className="text-ocean-400 font-bold">UUID:</span> <span className="font-bold">{rawSourceUuid}</span></div>
+                                <div><span className="text-ocean-400 font-bold">LEN:</span> <span className="font-bold">{rawByteLength}</span></div>
+                                <div><span className="text-ocean-400 font-bold">RAW HEX EXACT:</span> <span className="font-bold">{rawHexExact}</span></div>
+                                <div><span className="text-ocean-400 font-bold">B[0..7]:</span> <span className="font-bold">{rawBytes_0_7}</span></div>
+                                <div><span className="text-ocean-400 font-bold">B[8..13]:</span> <span className="font-bold">{rawBytes_8_13}</span></div>
+                                <div><span className="text-ocean-400 font-bold">B[14..19]:</span> <span className="font-bold">{rawBytes_14_19}</span></div>
+                            </div>
+                            <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
+                                <span className="text-ocean-400 font-bold">CHARS:</span> <span className="font-bold">{characteristicsText}</span>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
