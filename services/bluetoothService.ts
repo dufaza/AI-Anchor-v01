@@ -17,6 +17,7 @@ const TI_UUIDS = {
 // ===========================================================================
 const STM32_BLE_NAME_PREFIXES = ['BLEMCL'];
 const STM32_FEATURES_SERVICE_UUID = '00000000-0001-11e1-9ab4-0002a5d5c51b';
+const STM32_DEBUG_SERVICE_UUID = '00000000-000e-11e1-9ab4-0002a5d5c51b';
 const STM32_CHAR_INERTIAL = '00e00000-0001-11e1-ac36-0002a5d5c51b';
 const STM32_CHAR_MLC = '0000000f-0002-11e1-ac36-0002a5d5c51b';
 const STM32_CHAR_FSM = '00000010-0002-11e1-ac36-0002a5d5c51b';
@@ -142,6 +143,7 @@ const logSTM32RawNotification = (uuid: string, data: DataView) => {
     emitBluetoothDebug({
         type: 'packet',
         uuid,
+        sourceUuid: uuid,
         byteLength: data.byteLength,
         hex,
         intervalMs,
@@ -527,6 +529,52 @@ const logSTM32StepFailed = (stepNumber: number, error: any) => {
     console.error(getBluetoothErrorMessage(error));
 };
 
+const subscribeSTM32DebugCharacteristic = async (
+    characteristic: BluetoothRemoteGATTCharacteristic,
+    subscribedUuids: string[]
+) => {
+    const uuid = characteristic.uuid;
+    console.log(`STM32 debug subscribe start ${uuid}`);
+    await characteristic.startNotifications();
+    console.log(`STM32 debug subscribe OK ${uuid}`);
+    subscribedUuids.push(uuid);
+    characteristic.addEventListener('characteristicvaluechanged', (e: any) => {
+        logSTM32RawNotification(uuid, e.target.value);
+    });
+};
+
+const discoverAndSubscribeSTM32DebugCharacteristics = async (
+    service: BluetoothRemoteGATTService,
+    subscribedUuids: string[]
+) => {
+    console.log("STM32 STEP 3 START");
+    const characteristics = await (service as any).getCharacteristics();
+    console.log("STM32 STEP 3 OK");
+
+    for (const characteristic of characteristics as BluetoothRemoteGATTCharacteristic[]) {
+        const uuid = characteristic.uuid;
+        const supportsNotify = characteristic.properties.notify;
+        const supportsIndicate = characteristic.properties.indicate;
+        console.log("STM32 discovered characteristic", {
+            uuid,
+            notify: supportsNotify,
+            indicate: supportsIndicate,
+            read: characteristic.properties.read,
+            write: characteristic.properties.write,
+            writeWithoutResponse: characteristic.properties.writeWithoutResponse
+        });
+
+        if (!supportsNotify && !supportsIndicate) continue;
+        if (uuid === STM32_CHAR_INERTIAL) continue;
+
+        try {
+            await subscribeSTM32DebugCharacteristic(characteristic, subscribedUuids);
+        } catch (error) {
+            console.warn(`STM32 debug subscribe skipped ${uuid}: ${getBluetoothErrorName(error)} ${getBluetoothErrorMessage(error)}`);
+        }
+    }
+};
+
 const subscribeSTM32Characteristic = async (
     service: BluetoothRemoteGATTService,
     uuid: string,
@@ -603,7 +651,7 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         console.log("STM32: Requesting Device...");
         device = await navigator.bluetooth.requestDevice({
             filters: STM32_BLE_NAME_PREFIXES.map(namePrefix => ({ namePrefix })),
-            optionalServices: [STM32_FEATURES_SERVICE_UUID]
+            optionalServices: [STM32_FEATURES_SERVICE_UUID, STM32_DEBUG_SERVICE_UUID]
         });
         console.log(`STM32: Device selected: device.name=${device.name || 'Unavailable'}, device.id=${device.id || 'Unavailable'}`);
         emitBluetoothDebug({
@@ -652,19 +700,17 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         }
         console.log(`STM32: Service found: ${STM32_FEATURES_SERVICE_UUID}`);
         console.log(`STM32 known characteristic UUIDs: ${STM32_KNOWN_CHARACTERISTICS.join(', ')}`);
-        console.log("STM32 STEP 3 START");
+        const connectedDevice = device;
+        recentSTM32RawNotificationLogs = [];
+        lastSTM32NotificationAtByUuid = {};
+        const subscribedUuids: string[] = [];
+
         try {
-            await (service as any).getCharacteristics();
-            console.log("STM32 STEP 3 OK");
+            await discoverAndSubscribeSTM32DebugCharacteristics(service, subscribedUuids);
         } catch (error) {
             logSTM32StepFailed(3, error);
             throw error;
         }
-        const connectedDevice = device;
-
-        recentSTM32RawNotificationLogs = [];
-        lastSTM32NotificationAtByUuid = {};
-        const subscribedUuids: string[] = [];
 
         step = 'getCharacteristic';
         characteristicUuid = STM32_CHAR_INERTIAL;
@@ -676,6 +722,10 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
 
         void (async () => {
             for (const optionalUuid of STM32_OPTIONAL_NOTIFICATION_CHARS) {
+                if (subscribedUuids.includes(optionalUuid)) {
+                    console.log(`STM32 optional already subscribed by debug discovery: ${optionalUuid}`);
+                    continue;
+                }
                 try {
                     await subscribeSTM32Characteristic(service, optionalUuid, connectedDevice, subscribedUuids);
                     console.log(`STM32 optional subscribed UUIDs: ${subscribedUuids.join(', ')}`);
