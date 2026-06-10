@@ -81,14 +81,32 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         lastPacketTime?: number;
         lastPacketLength?: number;
         lastPacketHex?: string;
+        characteristicsText?: string;
     }>({ packetCount: 0 });
 
     useEffect(() => {
         const handleBleDebug = (event: Event) => {
             const detail = (event as CustomEvent).detail;
+            if (detail?.type === 'characteristics') {
+                const characteristics = detail.characteristics || [];
+                setBlePacketDiag(prev => ({
+                    ...prev,
+                    characteristicsText: characteristics.map((characteristic: any) => [
+                        characteristic.uuid,
+                        `notify=${characteristic.notify}`,
+                        `indicate=${characteristic.indicate}`,
+                        `read=${characteristic.read}`,
+                        `write=${characteristic.write}`,
+                        `writeWithoutResponse=${characteristic.writeWithoutResponse}`
+                    ].join(' | ')).join('\n')
+                }));
+                return;
+            }
+
             if (detail?.type !== 'packet') return;
 
             setBlePacketDiag(prev => ({
+                ...prev,
                 packetCount: prev.packetCount + 1,
                 lastPacketTime: Date.now(),
                 lastPacketLength: detail.byteLength,
@@ -943,6 +961,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     const packetCountText = blePacketDiag.packetCount > 0 ? String(blePacketDiag.packetCount) : '—';
     const lastPacketTimeText = formatRawTime(blePacketDiag.lastPacketTime);
     const lastPacketHex = blePacketDiag.lastPacketHex || '—';
+    const characteristicsText = blePacketDiag.characteristicsText || '—';
 
     return (
         <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto pb-24 animate-in fade-in duration-300">
@@ -974,6 +993,9 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                     </div>
                     <div className="break-words whitespace-normal leading-snug max-h-16 overflow-y-auto">
                         <span className="text-ocean-400 font-bold">HEX:</span> <span className="font-bold">{lastPacketHex}</span>
+                    </div>
+                    <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
+                        <span className="text-ocean-400 font-bold">CHARS:</span> <span className="font-bold">{characteristicsText}</span>
                     </div>
                 </div>
             </div>
