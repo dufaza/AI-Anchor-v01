@@ -76,6 +76,29 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
 
     // Toggle for Optional Recording
     const [isRecordEnabled, setIsRecordEnabled] = useState(true);
+    const [blePacketDiag, setBlePacketDiag] = useState<{
+        packetCount: number;
+        lastPacketTime?: number;
+        lastPacketLength?: number;
+        lastPacketHex?: string;
+    }>({ packetCount: 0 });
+
+    useEffect(() => {
+        const handleBleDebug = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.type !== 'packet') return;
+
+            setBlePacketDiag(prev => ({
+                packetCount: prev.packetCount + 1,
+                lastPacketTime: Date.now(),
+                lastPacketLength: detail.byteLength,
+                lastPacketHex: detail.hex
+            }));
+        };
+
+        window.addEventListener('smartanchor-ble-debug', handleBleDebug);
+        return () => window.removeEventListener('smartanchor-ble-debug', handleBleDebug);
+    }, []);
 
     useEffect(() => {
         // Reduced smoothing factor for stability (0.2 -> 0.08)
@@ -926,6 +949,12 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         ['gyroZ', formatRawNumber(sensorData.gyroZ)],
         ['lastUpdate', formatRawTime(sensorData.lastUpdate)]
     ];
+    const packetDiagItems = [
+        ['packetCount', blePacketDiag.packetCount > 0 ? String(blePacketDiag.packetCount) : '—'],
+        ['lastPacketTime', formatRawTime(blePacketDiag.lastPacketTime)],
+        ['lastPacketLength', typeof blePacketDiag.lastPacketLength === 'number' ? String(blePacketDiag.lastPacketLength) : '—']
+    ];
+    const lastPacketHex = blePacketDiag.lastPacketHex || '—';
 
     return (
         <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto pb-24 animate-in fade-in duration-300">
@@ -945,6 +974,26 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                             <span className="text-white font-bold truncate">{value}</span>
                         </div>
                     ))}
+                </div>
+            </div>
+
+            <div className="bg-black/40 border border-ocean-600 rounded-lg p-2 flex-shrink-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ocean-300 mb-1">
+                    BLE PACKET DEBUG
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono">
+                    {packetDiagItems.map(([label, value]) => (
+                        <div key={label} className="flex justify-between gap-2 min-w-0">
+                            <span className="text-ocean-400 truncate">{label}</span>
+                            <span className="text-white font-bold truncate">{value}</span>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-2 border-t border-ocean-700 pt-1">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-ocean-400 mb-0.5">lastPacketHex</div>
+                    <div className="max-h-16 overflow-y-auto break-words whitespace-normal text-[9px] leading-snug font-mono text-white">
+                        {lastPacketHex}
+                    </div>
                 </div>
             </div>
 
