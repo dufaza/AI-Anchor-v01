@@ -913,12 +913,39 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     // Calculate Total Elapsed Time since Ready to Go
     // CHANGED: Use Math.floor to show integer seconds instead of fixed(1) which showed milliseconds/decimal.
     const totalElapsedSec = sequenceStartTime ? Math.floor((currentTimerTick - sequenceStartTime) / 1000).toString() : "0";
+    const formatRawNumber = (value?: number) => typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '—';
+    const formatRawTime = (value?: number) => typeof value === 'number' && Number.isFinite(value)
+        ? new Date(value).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        : '—';
+    const rawAccGyroItems = [
+        ['accX', formatRawNumber(sensorData.accX)],
+        ['accY', formatRawNumber(sensorData.accY)],
+        ['accZ', formatRawNumber(sensorData.accZ)],
+        ['gyroX', formatRawNumber(sensorData.gyroX)],
+        ['gyroY', formatRawNumber(sensorData.gyroY)],
+        ['gyroZ', formatRawNumber(sensorData.gyroZ)],
+        ['lastUpdate', formatRawTime(sensorData.lastUpdate)]
+    ];
 
     return (
         <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto pb-24 animate-in fade-in duration-300">
              <div className="flex items-center justify-between px-2 flex-shrink-0">
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Bluetooth className="w-6 h-6 text-ocean-500" /> Positioning</h2>
                 <div className="flex gap-2"><span className={`flex items-center gap-1 text-xs font-mono px-2 py-1 rounded ${sensorData.isConnected ? 'bg-safe-900 text-safe-500' : 'bg-ocean-800 text-gray-400'}`}>{sensorData.isConnected ? (config.bluetoothDeviceName || 'LINKED') : 'OFFLINE'} <Wifi className="w-3 h-3" /></span></div>
+            </div>
+
+            <div className="bg-black/40 border border-ocean-600 rounded-lg p-2 flex-shrink-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ocean-300 mb-1">
+                    RAW ACC/GYRO
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono">
+                    {rawAccGyroItems.map(([label, value]) => (
+                        <div key={label} className="flex justify-between gap-2 min-w-0">
+                            <span className="text-ocean-400 truncate">{label}</span>
+                            <span className="text-white font-bold truncate">{value}</span>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             {/* READY TO GO CONTROL GROUP - MOVED OUTSIDE CONTAINER */}
