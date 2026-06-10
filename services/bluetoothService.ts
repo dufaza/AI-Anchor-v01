@@ -485,13 +485,20 @@ const getPrimaryServiceWithRetry = async (
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-            console.log(`STM32 getPrimaryService attempt ${attempt}/${maxAttempts}: ${uuid}`);
-            const service = await server.getPrimaryService(uuid);
-            console.log(`STM32 getPrimaryService OK: ${uuid}`);
+            console.log(`STM32 getPrimaryService START ${attempt}/${maxAttempts}: ${uuid}`);
+            const service = await Promise.race([
+                server.getPrimaryService(uuid),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error("getPrimaryService timeout")), 3000)
+                )
+            ]);
+            console.log(`STM32 getPrimaryService OK ${attempt}/${maxAttempts}: ${uuid}`);
             return service;
         } catch (error) {
             lastError = error;
-            console.warn(`STM32 getPrimaryService FAILED ${attempt}/${maxAttempts}: ${getBluetoothErrorName(error)} ${getBluetoothErrorMessage(error)}`);
+            const errorMessage = getBluetoothErrorMessage(error);
+            const status = errorMessage === "getPrimaryService timeout" ? "TIMEOUT" : "FAILED";
+            console.warn(`STM32 getPrimaryService ${status} ${attempt}/${maxAttempts}: ${getBluetoothErrorName(error)} ${errorMessage}`);
             if (attempt < maxAttempts) {
                 await new Promise(resolve => setTimeout(resolve, delayMs));
             }
