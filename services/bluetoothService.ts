@@ -22,6 +22,7 @@ const STM32_CHAR_MLC = '0000000f-0002-11e1-ac36-0002a5d5c51b';
 const STM32_CHAR_FSM = '00000010-0002-11e1-ac36-0002a5d5c51b';
 const STM32_CHAR_ACTIVITY = '00000010-0001-11e1-ac36-0002a5d5c51b';
 const STM32_CHAR_EXT_CONFIG = '00000014-0002-11e1-ac36-0002a5d5c51b';
+const STM32_ENABLE_MLC_RAW_DEBUG = false;
 
 const STM32_OPTIONAL_NOTIFICATION_CHARS = [
     STM32_CHAR_MLC,
@@ -151,6 +152,7 @@ const logSTM32RawNotification = (uuid: string, data: DataView, rawDebug = getSTM
     const logEntry = formatSTM32RawPayload(uuid, data, intervalMs, estimatedHz);
     const bytes = Array.from({ length: data.byteLength }, (_, index) => data.getUint8(index));
     const hex = bytes.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
+    const gyroRawAllZero = data.byteLength >= 14 && [8, 9, 10, 11, 12, 13].every(index => data.getUint8(index) === 0);
     recentSTM32RawNotificationLogs.push(logEntry);
     recentSTM32RawNotificationLogs = recentSTM32RawNotificationLogs.slice(-10);
     console.log(logEntry);
@@ -160,6 +162,7 @@ const logSTM32RawNotification = (uuid: string, data: DataView, rawDebug = getSTM
         byteLength: data.byteLength,
         hex,
         ...rawDebug,
+        gyroRawAllZero,
         intervalMs,
         estimatedHz: estimatedHz !== null ? estimatedHz.toFixed(2) : null
     });
@@ -761,12 +764,16 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         step = 'getCharacteristic';
         characteristicUuid = STM32_CHAR_INERTIAL;
         await subscribeSTM32Characteristic(service, STM32_CHAR_INERTIAL, connectedDevice, subscribedUuids, onData);
-        await subscribeSTM32MLCRawDebugCharacteristic(service, STM32_CHAR_MLC, connectedDevice, subscribedUuids);
+        if (STM32_ENABLE_MLC_RAW_DEBUG) {
+            await subscribeSTM32MLCRawDebugCharacteristic(service, STM32_CHAR_MLC, connectedDevice, subscribedUuids);
+        } else {
+            console.log('STM32 MLC raw debug disabled by flag');
+        }
 
         console.log("STM32 setup complete");
         console.log(`STM32 service UUID: ${serviceUuid}`);
         console.log(`STM32 subscribed UUIDs: ${subscribedUuids.join(', ')}`);
-        console.log(`STM32 optional subscriptions temporarily disabled except MLC raw debug: ${STM32_OPTIONAL_NOTIFICATION_CHARS.join(', ')}`);
+        console.log(`STM32 optional subscriptions temporarily disabled: ${STM32_OPTIONAL_NOTIFICATION_CHARS.join(', ')}`);
 
         return device;
     } catch (error) {

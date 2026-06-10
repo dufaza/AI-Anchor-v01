@@ -90,6 +90,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         rawBytes_0_7?: string;
         rawBytes_8_13?: string;
         rawBytes_14_19?: string;
+        gyroRawAllZero?: boolean;
     }>({ packetCount: 0 });
     const [mlcDiag, setMlcDiag] = useState<{
         packetCount: number;
@@ -163,7 +164,8 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                 rawHexExact: detail.rawHexExact,
                 rawBytes_0_7: detail.rawBytes_0_7,
                 rawBytes_8_13: detail.rawBytes_8_13,
-                rawBytes_14_19: detail.rawBytes_14_19
+                rawBytes_14_19: detail.rawBytes_14_19,
+                gyroRawAllZero: detail.gyroRawAllZero
             }));
         };
 
@@ -1058,6 +1060,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     // CHANGED: Use Math.floor to show integer seconds instead of fixed(1) which showed milliseconds/decimal.
     const totalElapsedSec = sequenceStartTime ? Math.floor((currentTimerTick - sequenceStartTime) / 1000).toString() : "0";
     const rawHexExact = blePacketDiag.rawHexExact || '—';
+    const gyroRawAllZeroText = typeof blePacketDiag.gyroRawAllZero === 'boolean' ? (blePacketDiag.gyroRawAllZero ? 'YES' : 'NO') : '—';
 
     return (
         <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto pb-24 animate-in fade-in duration-300">
@@ -1094,6 +1097,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                             <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
                                 <div><span className="text-ocean-400 font-bold">ACC:</span> X=<span className="font-bold">{formatRawNumber(sensorData.accX)}</span> Y=<span className="font-bold">{formatRawNumber(sensorData.accY)}</span> Z=<span className="font-bold">{formatRawNumber(sensorData.accZ)}</span></div>
                                 <div><span className="text-ocean-400 font-bold">GYRO:</span> X=<span className="font-bold">{formatRawNumber(sensorData.gyroX)}</span> Y=<span className="font-bold">{formatRawNumber(sensorData.gyroY)}</span> Z=<span className="font-bold">{formatRawNumber(sensorData.gyroZ)}</span></div>
+                                <div><span className="text-ocean-400 font-bold">GYRO RAW ZERO:</span> <span className="font-bold">{gyroRawAllZeroText}</span></div>
                                 <div><span className="text-ocean-400 font-bold">RAW HEX:</span> <span className="font-bold">{rawHexExact}</span></div>
                             </div>
                             <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
