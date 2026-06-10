@@ -451,6 +451,30 @@ const parseSTM32Inertial = (data: DataView): Partial<SensorData> => {
     return result;
 };
 
+const getCharacteristicWithRetry = async (
+    service: BluetoothRemoteGATTService,
+    uuid: string,
+    maxAttempts = 5,
+    delayMs = 1000
+) => {
+    let lastError: any = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            console.log(`STM32 getCharacteristic attempt ${attempt}/${maxAttempts}: ${uuid}`);
+            return await service.getCharacteristic(uuid);
+        } catch (error) {
+            lastError = error;
+            console.warn(`STM32 getCharacteristic failed attempt ${attempt}/${maxAttempts}: ${uuid}`, error);
+            if (attempt < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        }
+    }
+
+    throw lastError;
+};
+
 const subscribeSTM32Characteristic = async (
     service: BluetoothRemoteGATTService,
     uuid: string,
@@ -459,7 +483,7 @@ const subscribeSTM32Characteristic = async (
     onData?: (data: Partial<SensorData>) => void
 ) => {
     console.log(`STM32 getCharacteristic start ${uuid}`);
-    const characteristic = await service.getCharacteristic(uuid);
+    const characteristic = await getCharacteristicWithRetry(service, uuid);
     console.log(`STM32 getCharacteristic OK ${uuid}`);
 
     if (!characteristic.properties.notify) {
