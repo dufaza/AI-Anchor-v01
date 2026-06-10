@@ -946,13 +946,11 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         ['accZ', formatRawNumber(sensorData.accZ)],
         ['gyroX', formatRawNumber(sensorData.gyroX)],
         ['gyroY', formatRawNumber(sensorData.gyroY)],
-        ['gyroZ', formatRawNumber(sensorData.gyroZ)],
-        ['lastUpdate', formatRawTime(sensorData.lastUpdate)]
+        ['gyroZ', formatRawNumber(sensorData.gyroZ)]
     ];
     const packetDiagItems = [
         ['packetCount', blePacketDiag.packetCount > 0 ? String(blePacketDiag.packetCount) : '—'],
-        ['lastPacketTime', formatRawTime(blePacketDiag.lastPacketTime)],
-        ['lastPacketLength', typeof blePacketDiag.lastPacketLength === 'number' ? String(blePacketDiag.lastPacketLength) : '—']
+        ['lastPacketTime', formatRawTime(blePacketDiag.lastPacketTime)]
     ];
     const lastPacketHex = blePacketDiag.lastPacketHex || '—';
 

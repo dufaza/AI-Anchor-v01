@@ -426,7 +426,13 @@ const parseSTM32Inertial = (data: DataView): Partial<SensorData> => {
     const accX = data.getInt16(2, true);
     const accY = data.getInt16(4, true);
     const accZ = data.getInt16(6, true);
+    const pitch = Math.atan2(accY, Math.sqrt(accX * accX + accZ * accZ)) * 180 / Math.PI;
+    const roll = Math.atan2(-accX, accZ) * 180 / Math.PI;
+    const yaw = 0;
     const result: Partial<SensorData> = {
+        pitch: parseFloat(pitch.toFixed(2)),
+        roll: parseFloat(roll.toFixed(2)),
+        yaw,
         accX,
         accY,
         accZ,

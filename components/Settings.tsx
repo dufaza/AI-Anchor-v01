@@ -314,7 +314,7 @@ const Settings: React.FC<SettingsProps> = ({
                             <button key={type} onClick={() => handleSensorTypeChange(type as SensorType)} className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${config.sensorType === type ? 'bg-ocean-600 border-ocean-400 text-white' : 'bg-ocean-900 border-ocean-700 text-gray-400'}`}>
                                 <Box className="w-5 h-5" />
                                 <div>
-                                    <div className="font-bold text-sm">{type === 'STM32_TILEBOX' ? 'STM32 SensorTile / SensorBoxPro' : 'Simulator'}</div>
+                                    <div className="font-bold text-sm">{type === 'STM32_TILEBOX' ? 'STM32 SensorTileBoxPro' : 'Simulator'}</div>
                                 </div>
                                 {config.sensorType === type && <Check className="w-4 h-4 ml-auto" />}
                             </button>
