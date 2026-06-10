@@ -418,40 +418,47 @@ const parseSTM32Accel = (data: DataView): Partial<SensorData> => {
 };
 
 const parseSTM32Inertial = (data: DataView): Partial<SensorData> => {
-    if (data.byteLength < 20) return {
-        lastUpdate: Date.now(),
-        isConnected: true
-    };
-
-    const accX = data.getInt16(2, true);
-    const accY = data.getInt16(4, true);
-    const accZ = data.getInt16(6, true);
-    const gyroX = data.getInt16(8, true) / 10;
-    const gyroY = data.getInt16(10, true) / 10;
-    const gyroZ = data.getInt16(12, true) / 10;
-    const magX = data.getInt16(14, true);
-    const magY = data.getInt16(16, true);
-    const magZ = data.getInt16(18, true);
-    const pitch = Math.atan2(accY, Math.sqrt(accX * accX + accZ * accZ)) * 180 / Math.PI;
-    const roll = Math.atan2(-accX, accZ) * 180 / Math.PI;
-    const yaw = 0;
     const result: Partial<SensorData> = {
-        pitch: parseFloat(pitch.toFixed(2)),
-        roll: parseFloat(roll.toFixed(2)),
-        yaw,
-        accX,
-        accY,
-        accZ,
-        gyroX,
-        gyroY,
-        gyroZ,
-        magX,
-        magY,
-        magZ,
-        hasRawAccel: true,
         lastUpdate: Date.now(),
         isConnected: true
     };
+    (result as any).stm32PacketLength = data.byteLength;
+
+    if (data.byteLength >= 8) {
+        const accX = data.getInt16(2, true);
+        const accY = data.getInt16(4, true);
+        const accZ = data.getInt16(6, true);
+        const pitch = Math.atan2(accY, Math.sqrt(accX * accX + accZ * accZ)) * 180 / Math.PI;
+        const roll = Math.atan2(-accX, accZ) * 180 / Math.PI;
+        const yaw = 0;
+
+        result.pitch = parseFloat(pitch.toFixed(2));
+        result.roll = parseFloat(roll.toFixed(2));
+        result.yaw = yaw;
+        result.accX = accX;
+        result.accY = accY;
+        result.accZ = accZ;
+        result.hasRawAccel = true;
+    }
+
+    if (data.byteLength >= 14) {
+        const gyroRawX = data.getInt16(8, true);
+        const gyroRawY = data.getInt16(10, true);
+        const gyroRawZ = data.getInt16(12, true);
+
+        result.gyroX = gyroRawX / 10;
+        result.gyroY = gyroRawY / 10;
+        result.gyroZ = gyroRawZ / 10;
+        (result as any).stm32GyroRawX = gyroRawX;
+        (result as any).stm32GyroRawY = gyroRawY;
+        (result as any).stm32GyroRawZ = gyroRawZ;
+    }
+
+    if (data.byteLength >= 20) {
+        result.magX = data.getInt16(14, true);
+        result.magY = data.getInt16(16, true);
+        result.magZ = data.getInt16(18, true);
+    }
 
     console.log("STM32 decoded inertial data", result);
     return result;
