@@ -85,20 +85,40 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     }>({ packetCount: 0 });
 
     useEffect(() => {
+        type BleCharacteristicDebug = {
+            uuid: string;
+            notify: boolean;
+            indicate: boolean;
+            read: boolean;
+            write: boolean;
+            writeWithoutResponse: boolean;
+        };
+        const formatCharacteristics = (characteristics: BleCharacteristicDebug[]) => characteristics.map(characteristic => [
+            characteristic.uuid,
+            `notify=${characteristic.notify}`,
+            `indicate=${characteristic.indicate}`,
+            `read=${characteristic.read}`,
+            `write=${characteristic.write}`,
+            `writeWithoutResponse=${characteristic.writeWithoutResponse}`
+        ].join(' | ')).join('\n');
+        const cachedCharacteristics = (window as Window & {
+            __smartanchorBleCharacteristics?: BleCharacteristicDebug[];
+        }).__smartanchorBleCharacteristics;
+
+        if (cachedCharacteristics) {
+            setBlePacketDiag(prev => ({
+                ...prev,
+                characteristicsText: formatCharacteristics(cachedCharacteristics)
+            }));
+        }
+
         const handleBleDebug = (event: Event) => {
             const detail = (event as CustomEvent).detail;
             if (detail?.type === 'characteristics') {
                 const characteristics = detail.characteristics || [];
                 setBlePacketDiag(prev => ({
                     ...prev,
-                    characteristicsText: characteristics.map((characteristic: any) => [
-                        characteristic.uuid,
-                        `notify=${characteristic.notify}`,
-                        `indicate=${characteristic.indicate}`,
-                        `read=${characteristic.read}`,
-                        `write=${characteristic.write}`,
-                        `writeWithoutResponse=${characteristic.writeWithoutResponse}`
-                    ].join(' | ')).join('\n')
+                    characteristicsText: formatCharacteristics(characteristics)
                 }));
                 return;
             }

@@ -655,16 +655,18 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         console.log("STM32 STEP 3 START");
         try {
             const characteristics = await (service as any).getCharacteristics();
+            const mappedCharacteristics = (characteristics as BluetoothRemoteGATTCharacteristic[]).map(characteristic => ({
+                uuid: characteristic.uuid,
+                notify: characteristic.properties.notify,
+                indicate: characteristic.properties.indicate,
+                read: characteristic.properties.read,
+                write: characteristic.properties.write,
+                writeWithoutResponse: characteristic.properties.writeWithoutResponse
+            }));
+            (window as Window & { __smartanchorBleCharacteristics?: typeof mappedCharacteristics }).__smartanchorBleCharacteristics = mappedCharacteristics;
             emitBluetoothDebug({
                 type: 'characteristics',
-                characteristics: (characteristics as BluetoothRemoteGATTCharacteristic[]).map(characteristic => ({
-                    uuid: characteristic.uuid,
-                    notify: characteristic.properties.notify,
-                    indicate: characteristic.properties.indicate,
-                    read: characteristic.properties.read,
-                    write: characteristic.properties.write,
-                    writeWithoutResponse: characteristic.properties.writeWithoutResponse
-                }))
+                characteristics: mappedCharacteristics
             });
             console.log("STM32 STEP 3 OK");
         } catch (error) {
