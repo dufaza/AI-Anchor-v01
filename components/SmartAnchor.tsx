@@ -82,6 +82,12 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         lastPacketLength?: number;
         lastPacketHex?: string;
         characteristicsText?: string;
+        rawSourceUuid?: string;
+        rawByteLength?: number;
+        rawHexExact?: string;
+        rawBytes_0_7?: string;
+        rawBytes_8_13?: string;
+        rawBytes_14_19?: string;
     }>({ packetCount: 0 });
 
     useEffect(() => {
@@ -130,7 +136,13 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                 packetCount: prev.packetCount + 1,
                 lastPacketTime: Date.now(),
                 lastPacketLength: detail.byteLength,
-                lastPacketHex: detail.hex
+                lastPacketHex: detail.hex,
+                rawSourceUuid: detail.rawSourceUuid,
+                rawByteLength: detail.rawByteLength,
+                rawHexExact: detail.rawHexExact,
+                rawBytes_0_7: detail.rawBytes_0_7,
+                rawBytes_8_13: detail.rawBytes_8_13,
+                rawBytes_14_19: detail.rawBytes_14_19
             }));
         };
 
@@ -982,6 +994,12 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     const lastPacketTimeText = formatRawTime(blePacketDiag.lastPacketTime);
     const lastPacketHex = blePacketDiag.lastPacketHex || '—';
     const characteristicsText = blePacketDiag.characteristicsText || '—';
+    const rawSourceUuid = blePacketDiag.rawSourceUuid || '—';
+    const rawByteLength = typeof blePacketDiag.rawByteLength === 'number' ? String(blePacketDiag.rawByteLength) : '—';
+    const rawHexExact = blePacketDiag.rawHexExact || '—';
+    const rawBytes_0_7 = blePacketDiag.rawBytes_0_7 || '—';
+    const rawBytes_8_13 = blePacketDiag.rawBytes_8_13 || '—';
+    const rawBytes_14_19 = blePacketDiag.rawBytes_14_19 || '—';
 
     return (
         <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto pb-24 animate-in fade-in duration-300">
@@ -1013,6 +1031,14 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                     </div>
                     <div className="break-words whitespace-normal leading-snug max-h-16 overflow-y-auto">
                         <span className="text-ocean-400 font-bold">HEX:</span> <span className="font-bold">{lastPacketHex}</span>
+                    </div>
+                    <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
+                        <div><span className="text-ocean-400 font-bold">UUID:</span> <span className="font-bold">{rawSourceUuid}</span></div>
+                        <div><span className="text-ocean-400 font-bold">LEN:</span> <span className="font-bold">{rawByteLength}</span></div>
+                        <div><span className="text-ocean-400 font-bold">RAW HEX EXACT:</span> <span className="font-bold">{rawHexExact}</span></div>
+                        <div><span className="text-ocean-400 font-bold">B[0..7]:</span> <span className="font-bold">{rawBytes_0_7}</span></div>
+                        <div><span className="text-ocean-400 font-bold">B[8..13]:</span> <span className="font-bold">{rawBytes_8_13}</span></div>
+                        <div><span className="text-ocean-400 font-bold">B[14..19]:</span> <span className="font-bold">{rawBytes_14_19}</span></div>
                     </div>
                     <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
                         <span className="text-ocean-400 font-bold">CHARS:</span> <span className="font-bold">{characteristicsText}</span>

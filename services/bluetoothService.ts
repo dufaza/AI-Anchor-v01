@@ -127,7 +127,21 @@ const formatSTM32RawPayload = (uuid: string, data: DataView, intervalMs: number 
     ].join('\n');
 };
 
-const logSTM32RawNotification = (uuid: string, data: DataView) => {
+const getSTM32RawDebug = (uuid: string, data: DataView) => {
+    const bytes = Array.from(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+    const toHex = (values: number[]) => values.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
+
+    return {
+        rawSourceUuid: uuid,
+        rawByteLength: data.byteLength,
+        rawHexExact: toHex(bytes),
+        rawBytes_0_7: toHex(bytes.slice(0, 8)),
+        rawBytes_8_13: toHex(bytes.slice(8, 14)),
+        rawBytes_14_19: toHex(bytes.slice(14, 20))
+    };
+};
+
+const logSTM32RawNotification = (uuid: string, data: DataView, rawDebug = getSTM32RawDebug(uuid, data)) => {
     const now = Date.now();
     const previousAt = lastSTM32NotificationAtByUuid[uuid] || null;
     const intervalMs = previousAt ? now - previousAt : null;
@@ -144,6 +158,7 @@ const logSTM32RawNotification = (uuid: string, data: DataView) => {
         uuid,
         byteLength: data.byteLength,
         hex,
+        ...rawDebug,
         intervalMs,
         estimatedHz: estimatedHz !== null ? estimatedHz.toFixed(2) : null
     });
@@ -576,7 +591,16 @@ const subscribeSTM32Characteristic = async (
     subscribedUuids.push(uuid);
     characteristic.addEventListener('characteristicvaluechanged', (e: any) => {
         const value = e.target.value;
-        logSTM32RawNotification(uuid, value);
+        const rawDebug = getSTM32RawDebug(uuid, value);
+        console.log("[STM32 RAW BLE]", {
+            uuid,
+            rawByteLength: rawDebug.rawByteLength,
+            rawHexExact: rawDebug.rawHexExact,
+            b0_7: rawDebug.rawBytes_0_7,
+            b8_13: rawDebug.rawBytes_8_13,
+            b14_19: rawDebug.rawBytes_14_19
+        });
+        logSTM32RawNotification(uuid, value, rawDebug);
         if (onData) onData(parseSTM32Inertial(value));
     });
 
