@@ -44,6 +44,7 @@ let activeInterval: any = null;
 let activeGattServer: BluetoothRemoteGATTServer | null = null;
 let recentSTM32RawNotificationLogs: string[] = [];
 let lastSTM32NotificationAtByUuid: Record<string, number> = {};
+let stm32MLCPacketCount = 0;
 
 const emitBluetoothDebug = (detail: any) => {
     window.dispatchEvent(new CustomEvent('smartanchor-ble-debug', { detail }));
@@ -614,6 +615,59 @@ const subscribeSTM32Characteristic = async (
     return characteristic;
 };
 
+const subscribeSTM32MLCRawDebugCharacteristic = async (
+    service: BluetoothRemoteGATTService,
+    uuid: string,
+    device: BluetoothDevice,
+    subscribedUuids: string[]
+) => {
+    try {
+        console.log(`STM32 MLC raw debug getCharacteristic start ${uuid}`);
+        const characteristic = await getCharacteristicWithRetry(service, uuid);
+        console.log(`STM32 MLC raw debug getCharacteristic OK ${uuid}`);
+
+        if (!characteristic.properties.notify) {
+            console.warn(`STM32 MLC raw debug characteristic does not support notify: ${uuid}`);
+            return null;
+        }
+
+        console.log(`STM32 MLC raw debug startNotifications start ${uuid}`);
+        await characteristic.startNotifications();
+        console.log(`STM32 MLC raw debug startNotifications OK ${uuid}`);
+
+        subscribedUuids.push(uuid);
+        emitBluetoothDebug({
+            type: 'status',
+            deviceName: device.name || 'Unavailable',
+            status: 'connected',
+            subscribedUuids
+        });
+
+        characteristic.addEventListener('characteristicvaluechanged', (e: any) => {
+            const value: DataView = e.target.value;
+            const bytes = Array.from(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
+            const hex = bytes.map(byte => byte.toString(16).padStart(2, '0')).join(' ');
+            const timestamp = Date.now();
+            stm32MLCPacketCount += 1;
+
+            emitBluetoothDebug({
+                type: 'mlcPacket',
+                uuid,
+                packetCount: stm32MLCPacketCount,
+                timestamp,
+                length: value.byteLength,
+                hex,
+                firstByte: bytes.length > 0 ? bytes[0] : null
+            });
+        });
+
+        return characteristic;
+    } catch (error) {
+        console.warn(`STM32 MLC raw debug subscription skipped ${uuid}`, error);
+        return null;
+    }
+};
+
 const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisconnect: () => void) => {
     if (!navigator.bluetooth) throw new Error("Bluetooth not supported");
 
@@ -701,16 +755,18 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
 
         recentSTM32RawNotificationLogs = [];
         lastSTM32NotificationAtByUuid = {};
+        stm32MLCPacketCount = 0;
         const subscribedUuids: string[] = [];
 
         step = 'getCharacteristic';
         characteristicUuid = STM32_CHAR_INERTIAL;
         await subscribeSTM32Characteristic(service, STM32_CHAR_INERTIAL, connectedDevice, subscribedUuids, onData);
+        await subscribeSTM32MLCRawDebugCharacteristic(service, STM32_CHAR_MLC, connectedDevice, subscribedUuids);
 
         console.log("STM32 setup complete");
         console.log(`STM32 service UUID: ${serviceUuid}`);
         console.log(`STM32 subscribed UUIDs: ${subscribedUuids.join(', ')}`);
-        console.log(`STM32 optional subscriptions temporarily disabled: ${STM32_OPTIONAL_NOTIFICATION_CHARS.join(', ')}`);
+        console.log(`STM32 optional subscriptions temporarily disabled except MLC raw debug: ${STM32_OPTIONAL_NOTIFICATION_CHARS.join(', ')}`);
 
         return device;
     } catch (error) {

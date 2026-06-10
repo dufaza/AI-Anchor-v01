@@ -91,6 +91,13 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
         rawBytes_8_13?: string;
         rawBytes_14_19?: string;
     }>({ packetCount: 0 });
+    const [mlcDiag, setMlcDiag] = useState<{
+        packetCount: number;
+        lastPacketTime?: number;
+        length?: number;
+        rawHex?: string;
+        firstByte?: number | null;
+    }>({ packetCount: 0 });
 
     useEffect(() => {
         type BleCharacteristicDebug = {
@@ -128,6 +135,17 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                     ...prev,
                     characteristicsText: formatCharacteristics(characteristics)
                 }));
+                return;
+            }
+
+            if (detail?.type === 'mlcPacket') {
+                setMlcDiag({
+                    packetCount: detail.packetCount || 0,
+                    lastPacketTime: detail.timestamp,
+                    length: detail.length,
+                    rawHex: detail.hex,
+                    firstByte: detail.firstByte
+                });
                 return;
             }
 
@@ -555,6 +573,12 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     const bleHzText = bleEstimatedHz !== null && Number.isFinite(bleEstimatedHz) ? String(Math.round(bleEstimatedHz)) : '—';
     const blePacketAgeMs = blePacketDiag.lastPacketTime ? Math.max(0, currentTimerTick - blePacketDiag.lastPacketTime) : null;
     const bleAgeText = blePacketAgeMs !== null ? String(blePacketAgeMs) : '—';
+    const mlcPacketAgeMs = mlcDiag.lastPacketTime ? Math.max(0, currentTimerTick - mlcDiag.lastPacketTime) : null;
+    const mlcPacketCountText = mlcDiag.packetCount > 0 ? String(mlcDiag.packetCount) : '—';
+    const mlcLengthText = typeof mlcDiag.length === 'number' ? String(mlcDiag.length) : '—';
+    const mlcAgeText = mlcPacketAgeMs !== null ? String(mlcPacketAgeMs) : '—';
+    const mlcFirstByteText = typeof mlcDiag.firstByte === 'number' ? String(mlcDiag.firstByte) : '—';
+    const mlcRawHex = mlcDiag.rawHex || '—';
     const hasRecentBlePacket = blePacketAgeMs !== null && blePacketAgeMs <= 2000;
     const isSlowBlePacket = hasRecentBlePacket && (bleEstimatedHz === null || !Number.isFinite(bleEstimatedHz) || bleEstimatedHz < 5);
     const bleBadgeText = !sensorData.isConnected
@@ -1071,6 +1095,12 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                                 <div><span className="text-ocean-400 font-bold">ACC:</span> X=<span className="font-bold">{formatRawNumber(sensorData.accX)}</span> Y=<span className="font-bold">{formatRawNumber(sensorData.accY)}</span> Z=<span className="font-bold">{formatRawNumber(sensorData.accZ)}</span></div>
                                 <div><span className="text-ocean-400 font-bold">GYRO:</span> X=<span className="font-bold">{formatRawNumber(sensorData.gyroX)}</span> Y=<span className="font-bold">{formatRawNumber(sensorData.gyroY)}</span> Z=<span className="font-bold">{formatRawNumber(sensorData.gyroZ)}</span></div>
                                 <div><span className="text-ocean-400 font-bold">RAW HEX:</span> <span className="font-bold">{rawHexExact}</span></div>
+                            </div>
+                            <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
+                                <div className="text-ocean-400 font-bold">MLC</div>
+                                <div>PKT: <span className="font-bold">{mlcPacketCountText}</span> <span className="text-ocean-500">|</span> LEN: <span className="font-bold">{mlcLengthText}</span> <span className="text-ocean-500">|</span> LAST: <span className="font-bold">{mlcAgeText}</span> ms</div>
+                                <div>BYTE0: <span className="font-bold">{mlcFirstByteText}</span></div>
+                                <div>RAW HEX: <span className="font-bold">{mlcRawHex}</span></div>
                             </div>
                         </>
                     )}
