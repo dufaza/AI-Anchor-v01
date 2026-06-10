@@ -940,18 +940,8 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
     const formatRawTime = (value?: number) => typeof value === 'number' && Number.isFinite(value)
         ? new Date(value).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         : '—';
-    const rawAccGyroItems = [
-        ['accX', formatRawNumber(sensorData.accX)],
-        ['accY', formatRawNumber(sensorData.accY)],
-        ['accZ', formatRawNumber(sensorData.accZ)],
-        ['gyroX', formatRawNumber(sensorData.gyroX)],
-        ['gyroY', formatRawNumber(sensorData.gyroY)],
-        ['gyroZ', formatRawNumber(sensorData.gyroZ)]
-    ];
-    const packetDiagItems = [
-        ['packetCount', blePacketDiag.packetCount > 0 ? String(blePacketDiag.packetCount) : '—'],
-        ['lastPacketTime', formatRawTime(blePacketDiag.lastPacketTime)]
-    ];
+    const packetCountText = blePacketDiag.packetCount > 0 ? String(blePacketDiag.packetCount) : '—';
+    const lastPacketTimeText = formatRawTime(blePacketDiag.lastPacketTime);
     const lastPacketHex = blePacketDiag.lastPacketHex || '—';
 
     return (
@@ -965,32 +955,25 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                 <div className="text-[10px] font-bold uppercase tracking-wider text-ocean-300 mb-1">
                     RAW ACC/GYRO
                 </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono">
-                    {rawAccGyroItems.map(([label, value]) => (
-                        <div key={label} className="flex justify-between gap-2 min-w-0">
-                            <span className="text-ocean-400 truncate">{label}</span>
-                            <span className="text-white font-bold truncate">{value}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            <div className="bg-black/40 border border-ocean-600 rounded-lg p-2 flex-shrink-0">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-ocean-300 mb-1">
-                    BLE PACKET DEBUG
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono">
-                    {packetDiagItems.map(([label, value]) => (
-                        <div key={label} className="flex justify-between gap-2 min-w-0">
-                            <span className="text-ocean-400 truncate">{label}</span>
-                            <span className="text-white font-bold truncate">{value}</span>
-                        </div>
-                    ))}
-                </div>
-                <div className="mt-2 border-t border-ocean-700 pt-1">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-ocean-400 mb-0.5">lastPacketHex</div>
-                    <div className="max-h-16 overflow-y-auto break-words whitespace-normal text-[9px] leading-snug font-mono text-white">
-                        {lastPacketHex}
+                <div className="space-y-1 text-[10px] font-mono text-white">
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        <span className="text-ocean-400 font-bold">ACC</span>
+                        <span>X: <span className="font-bold">{formatRawNumber(sensorData.accX)}</span></span>
+                        <span>Y: <span className="font-bold">{formatRawNumber(sensorData.accY)}</span></span>
+                        <span>Z: <span className="font-bold">{formatRawNumber(sensorData.accZ)}</span></span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        <span className="text-ocean-400 font-bold">GYRO</span>
+                        <span>X: <span className="font-bold">{formatRawNumber(sensorData.gyroX)}</span></span>
+                        <span>Y: <span className="font-bold">{formatRawNumber(sensorData.gyroY)}</span></span>
+                        <span>Z: <span className="font-bold">{formatRawNumber(sensorData.gyroZ)}</span></span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        <span>Packets: <span className="font-bold">{packetCountText}</span></span>
+                        <span>Last: <span className="font-bold">{lastPacketTimeText}</span></span>
+                    </div>
+                    <div className="break-words whitespace-normal leading-snug max-h-16 overflow-y-auto">
+                        <span className="text-ocean-400 font-bold">HEX:</span> <span className="font-bold">{lastPacketHex}</span>
                     </div>
                 </div>
             </div>
