@@ -774,7 +774,7 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
             <div className="flex flex-col h-full p-4 space-y-3 overflow-y-auto pb-36 animate-in fade-in duration-300">
                  <div className="flex items-center justify-between px-2">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Activity className="w-6 h-6 text-ocean-500" /> Monitoring</h2>
-                    <div className="flex gap-2"><span className="flex items-center gap-1 text-xs font-mono px-2 py-1 rounded bg-safe-900 text-safe-500">ACTIVE <Wifi className="w-3 h-3 animate-pulse" /></span></div>
+                    <div className="flex gap-2">{bleHealthBadge}</div>
                 </div>
 
                 <div className="flex gap-3">
@@ -1068,11 +1068,9 @@ const SmartAnchor: React.FC<SmartAnchorProps> = ({
                     {showBleDebugDetails && (
                         <>
                             <div className="break-words whitespace-pre-wrap leading-snug max-h-24 overflow-y-auto border-t border-ocean-700 pt-1">
-                                <div><span className="text-ocean-400 font-bold">PKT:</span> <span className="font-bold">{packetCountText}</span></div>
-                                <div><span className="text-ocean-400 font-bold">Hz:</span> <span className="font-bold">{bleHzText}</span></div>
-                                <div><span className="text-ocean-400 font-bold">LEN:</span> <span className="font-bold">{rawByteLength}</span></div>
-                                <div><span className="text-ocean-400 font-bold">LAST:</span> <span className="font-bold">{bleAgeText}</span>ms</div>
-                                <div><span className="text-ocean-400 font-bold">RAW HEX EXACT:</span> <span className="font-bold">{rawHexExact}</span></div>
+                                <div><span className="text-ocean-400 font-bold">ACC:</span> X=<span className="font-bold">{formatRawNumber(sensorData.accX)}</span> Y=<span className="font-bold">{formatRawNumber(sensorData.accY)}</span> Z=<span className="font-bold">{formatRawNumber(sensorData.accZ)}</span></div>
+                                <div><span className="text-ocean-400 font-bold">GYRO:</span> X=<span className="font-bold">{formatRawNumber(sensorData.gyroX)}</span> Y=<span className="font-bold">{formatRawNumber(sensorData.gyroY)}</span> Z=<span className="font-bold">{formatRawNumber(sensorData.gyroZ)}</span></div>
+                                <div><span className="text-ocean-400 font-bold">RAW HEX:</span> <span className="font-bold">{rawHexExact}</span></div>
                             </div>
                         </>
                     )}
