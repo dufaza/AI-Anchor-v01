@@ -475,6 +475,12 @@ const getCharacteristicWithRetry = async (
     throw lastError;
 };
 
+const logSTM32StepFailed = (stepNumber: number, error: any) => {
+    console.error(`STM32 STEP ${stepNumber} FAILED:`);
+    console.error(getBluetoothErrorName(error));
+    console.error(getBluetoothErrorMessage(error));
+};
+
 const subscribeSTM32Characteristic = async (
     service: BluetoothRemoteGATTService,
     uuid: string,
@@ -483,7 +489,21 @@ const subscribeSTM32Characteristic = async (
     onData?: (data: Partial<SensorData>) => void
 ) => {
     console.log(`STM32 getCharacteristic start ${uuid}`);
-    const characteristic = await getCharacteristicWithRetry(service, uuid);
+    if (uuid === STM32_CHAR_INERTIAL) {
+        console.log("STM32 STEP 4 START");
+    }
+    let characteristic: BluetoothRemoteGATTCharacteristic;
+    try {
+        characteristic = await getCharacteristicWithRetry(service, uuid);
+        if (uuid === STM32_CHAR_INERTIAL) {
+            console.log("STM32 STEP 4 OK");
+        }
+    } catch (error) {
+        if (uuid === STM32_CHAR_INERTIAL) {
+            logSTM32StepFailed(4, error);
+        }
+        throw error;
+    }
     console.log(`STM32 getCharacteristic OK ${uuid}`);
 
     if (!characteristic.properties.notify) {
@@ -491,7 +511,20 @@ const subscribeSTM32Characteristic = async (
     }
 
     console.log(`STM32 startNotifications start ${uuid}`);
-    await characteristic.startNotifications();
+    if (uuid === STM32_CHAR_INERTIAL) {
+        console.log("STM32 STEP 5 START");
+    }
+    try {
+        await characteristic.startNotifications();
+        if (uuid === STM32_CHAR_INERTIAL) {
+            console.log("STM32 STEP 5 OK");
+        }
+    } catch (error) {
+        if (uuid === STM32_CHAR_INERTIAL) {
+            logSTM32StepFailed(5, error);
+        }
+        throw error;
+    }
     console.log(`STM32 startNotifications OK ${uuid}`);
 
     subscribedUuids.push(uuid);
@@ -557,12 +590,37 @@ const connectSTM32 = async (onData: (data: Partial<SensorData>) => void, onDisco
         activeGattServer = server;
         console.log("STM32: GATT connected OK");
 
+        console.log("STM32 STEP 1 START");
+        try {
+            await (server as any).getPrimaryServices();
+            console.log("STM32 STEP 1 OK");
+        } catch (error) {
+            logSTM32StepFailed(1, error);
+            throw error;
+        }
+
         console.log(`STM32: Getting primary service ${STM32_FEATURES_SERVICE_UUID}...`);
         step = 'getPrimaryService';
         serviceUuid = STM32_FEATURES_SERVICE_UUID;
-        const service = await server.getPrimaryService(STM32_FEATURES_SERVICE_UUID);
+        console.log("STM32 STEP 2 START");
+        let service: BluetoothRemoteGATTService;
+        try {
+            service = await server.getPrimaryService(STM32_FEATURES_SERVICE_UUID);
+            console.log("STM32 STEP 2 OK");
+        } catch (error) {
+            logSTM32StepFailed(2, error);
+            throw error;
+        }
         console.log(`STM32: Service found: ${STM32_FEATURES_SERVICE_UUID}`);
         console.log(`STM32 known characteristic UUIDs: ${STM32_KNOWN_CHARACTERISTICS.join(', ')}`);
+        console.log("STM32 STEP 3 START");
+        try {
+            await (service as any).getCharacteristics();
+            console.log("STM32 STEP 3 OK");
+        } catch (error) {
+            logSTM32StepFailed(3, error);
+            throw error;
+        }
         const connectedDevice = device;
 
         recentSTM32RawNotificationLogs = [];
